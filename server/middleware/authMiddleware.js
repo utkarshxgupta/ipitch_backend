@@ -33,7 +33,7 @@ const roleCheck = (roles) => {
         return res.status(404).json({ msg: 'User not found' });
       }
 
-      const hasRole = roles.some(role => user.roles.includes(role));
+      const hasRole = roles.some(role => user.role.includes(role));
       if (!hasRole) {
         return res.status(403).json({ msg: 'Access denied' });
       }

@@ -43,10 +43,12 @@ exports.register = [
       const payload = {
         user: {
           id: user.id,
-          role: user.role
+          name: user.name,
+          role: user.role,
+          email: user.email
         }
       };
-
+      console.log(payload);
       const token = jwt.encode(payload, secret);
       res.json({ token });
 
@@ -86,7 +88,9 @@ exports.login = [
       const payload = {
         user: {
           id: user.id,
-          role: user.role
+          name: user.name,
+          role: user.role,
+          email: user.email
         }
       };
 
