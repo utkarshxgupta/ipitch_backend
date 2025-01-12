@@ -1,14 +1,17 @@
-import React from 'react';
-import ExampleList from './components/ExampleList';
+import React from "react";
+import ExampleList from "./components/ExampleList";
+import { Provider } from "./components/ui/provider";
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>iPitch</h1>
-      </header>
-      <ExampleList />
-    </div>
+    <Provider>
+      <div className="App">
+        <header className="App-header">
+          <h1>iPitch</h1>
+        </header>
+        <ExampleList />
+      </div>
+    </Provider>
   );
 }
 

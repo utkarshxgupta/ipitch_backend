@@ -10,6 +10,13 @@ import AdminDashboard from "../components/AdminDashboard";
 import ManagerDashboard from "../components/ManagerDashboard";
 import TrainerDashboard from "../components/TrainerDashboard";
 import TraineeDashboard from "../components/TraineeDashboard";
+import RoleManagement from "../components/RoleManagement";
+import ChallengeList from '../components/ChallengeList';
+import ChallengeDetail from '../components/ChallengeDetail';
+import SubmissionList from '../components/SubmissionList';
+import Notifications from '../components/Notifications';
+import Assignments from '../components/Assignments';
+import AssignmentForm from '../components/AssignmentForm';
 import PrivateRoute from "./PrivateRoute";
 import RoleRoute from "./RoleRoute"; // A new role-based route component
 import { AuthProvider } from "../context/authContext";
@@ -38,6 +45,13 @@ const AppRouter = () => {
             }
           />
           <Route
+            path="/admin/users/:id/roles"
+            element={
+              <RoleRoute element={<RoleManagement />} roles={["admin"]} />
+            }
+          />
+
+          <Route
             path="/manager"
             element={
               <RoleRoute
@@ -64,6 +78,12 @@ const AppRouter = () => {
               />
             }
           />
+          <Route path="/challenges" element={<ChallengeList />} />
+          <Route path="/challenges/:id" element={<ChallengeDetail />} />
+          <Route path="/submissions/:id" element={<PrivateRoute element={<SubmissionList />} />} />
+          <Route path="/notifications" element={<PrivateRoute element={<Notifications />} />} />
+          <Route path="/assignments" element={<PrivateRoute element={<Assignments />} />} />
+          <Route path="/assignments/create" element={<RoleRoute element={<AssignmentForm />} roles={['manager', 'admin']} />} />
         </Routes>
       </Router>
     </AuthProvider>

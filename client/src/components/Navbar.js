@@ -6,7 +6,7 @@ import { toast } from "react-toastify";
 const Navbar = () => {
   const { isAuthenticated, logout, user } = useContext(AuthContext);
   const navigate = useNavigate();
-  console.log(user);
+  console.log(user ? user.role : null);
   const handleLogout = () => {
     logout(); // Perform logout
     toast.success("Logged out successfully");
@@ -16,22 +16,24 @@ const Navbar = () => {
   return (
     <nav>
       <Link to="/">Home</Link>
-      {isAuthenticated && user ? (
+      { user && isAuthenticated ? (
         <>
-          {user.role.includes("admin") && (
+          {user.role && user.role.includes("admin") && (
             <Link to="/admin">Admin Dashboard</Link>
           )}
-          {user.role.includes("manager") && (
+          {user.role && user.role.includes("manager") && (
             <Link to="/manager">Manager Dashboard</Link>
           )}
-          {user.role.includes("trainer") && (
+          {user.role && user.role.includes("trainer") && (
             <Link to="/trainer">Trainer Dashboard</Link>
           )}
-          {user.role.includes("trainee") && (
+          {user.role && user.role.includes("trainee") && (
             <Link to="/trainee">Trainee Dashboard</Link>
           )}
           <Link to="/profile">Profile</Link>
           <Link to="/examples">Examples</Link>
+          <Link to="/challenges">Challenges</Link>
+          <Link to="/notifications">Notifications</Link>
           <button onClick={handleLogout}>Logout</button>
         </>
       ) : (
