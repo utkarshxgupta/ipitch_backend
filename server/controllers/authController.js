@@ -138,3 +138,16 @@ exports.updateUser = async (req, res) => {
     res.status(500).send('Server error');
   }
 };
+
+// @desc    Get all users except admins and managers
+// @route   GET /api/auth/users
+// @access  Private
+exports.getEndUsers = async (req, res) => {
+  try {
+    const users = await User.find({ role: { $nin: ['admin', 'manager'] } }).select('-password');
+    res.json(users);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+};

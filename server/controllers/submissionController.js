@@ -1,18 +1,24 @@
 const Submission = require('../models/Submission');
 const Challenge = require('../models/Challenge');
+const Assignment = require('../models/Assignment');
 
 // @route    POST api/submissions
 // @desc     Create a new submission
 // @access   Private (Trainee)
 exports.createSubmission = async (req, res) => {
   try {
-    const { challengeId, pitch } = req.body;
+    const { assignmentId, challengeId, pitch } = req.body;
+    const assignment = await Assignment.findById(assignmentId);
+    if (!assignment) {
+      return res.status(404).json({ msg: 'Assignment not found' });
+    }
     const challenge = await Challenge.findById(challengeId);
     if (!challenge) {
       return res.status(404).json({ msg: 'Challenge not found' });
     }
 
     const newSubmission = new Submission({
+      assignment: assignmentId,
       challenge: challengeId,
       trainee: req.user.id,
       pitch

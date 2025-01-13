@@ -47,3 +47,19 @@ exports.getAssignmentsByUser = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+
+// @route    GET api/assignments/:id
+// @desc     Get assignment by ID
+// @access   Private (Manager/Admin)
+exports.getAssignmentById = async (req, res) => {
+  try {
+    const assignment = await Assignment.findById(req.params.id).populate('challenges assignedUsers');
+    if (!assignment) {
+      return res.status(404).json({ msg: "Assignment not found" });
+    }
+    res.json(assignment);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};

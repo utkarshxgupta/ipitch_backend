@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const SubmissionSchema = new mongoose.Schema({
+  assignment: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
   challenge: { type: mongoose.Schema.Types.ObjectId, ref: 'Challenge', required: true },
   trainee: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   pitch: { type: String, required: true }, // Assume this is a video URL or ID

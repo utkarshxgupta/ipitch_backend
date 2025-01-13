@@ -1,12 +1,12 @@
 const express = require('express');
-const { register, login, getUser, updateUser } = require('../controllers/authController');
+const { register, login, getUser, updateUser, getEndUsers } = require('../controllers/authController');
 const { auth, roleCheck } = require('../middleware/authMiddleware');
 const { getExamples, createExample } = require('../controllers/exampleController');
 const { getUsers, updateUserRoles, getUserById } = require('../controllers/adminController');
 const { getChallenges, createChallenge, getChallengeById } = require('../controllers/challengeController');
 const { createSubmission, getSubmissionsByChallengeId, evaluateSubmission } = require('../controllers/submissionController');
 const { getNotifications, markAsRead } = require('../controllers/notificationController');
-const { createAssignment, getAssignments, getAssignmentsByUser } = require('../controllers/assignmentController');
+const { createAssignment, getAssignments, getAssignmentsByUser, getAssignmentById } = require('../controllers/assignmentController');
 const router = express.Router();
 
 // Example protected route for admin
@@ -29,6 +29,7 @@ router.post('/auth/register', register);
 router.post('/auth/login', login);
 router.get('/auth', auth, getUser);
 router.put('/auth/update', auth, updateUser);
+router.get('/auth/users', auth, roleCheck(['manager', 'admin']), getEndUsers);
 
 // Example routes
 router.get('/examples', getExamples);
@@ -57,5 +58,6 @@ router.put('/notifications/:id/read', auth, markAsRead);
 router.post('/assignments', auth, roleCheck(['manager', 'admin']), createAssignment);
 router.get('/assignments', auth, roleCheck(['manager', 'admin']), getAssignments);
 router.get('/assignments/user', auth, getAssignmentsByUser);
+router.get('/assignments/:id', auth, roleCheck(['manager', 'admin']), getAssignmentById);
 
 module.exports = router;
