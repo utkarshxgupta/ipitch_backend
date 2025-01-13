@@ -6,17 +6,18 @@ import Register from "../pages/Register";
 import Profile from "../pages/Profile";
 import ExampleList from "../components/ExampleList";
 import Navbar from "../components/Navbar";
-import AdminDashboard from "../components/AdminDashboard";
-import ManagerDashboard from "../components/ManagerDashboard";
-import TrainerDashboard from "../components/TrainerDashboard";
-import TraineeDashboard from "../components/TraineeDashboard";
-import RoleManagement from "../components/RoleManagement";
-import ChallengeList from '../components/ChallengeList';
-import ChallengeDetail from '../components/ChallengeDetail';
-import SubmissionList from '../components/SubmissionList';
-import Notifications from '../components/Notifications';
-import Assignments from '../components/Assignments';
-import AssignmentForm from '../components/AssignmentForm';
+import AdminDashboard from "../pages/AdminDashboard";
+import ManagerDashboard from "../pages/ManagerDashboard";
+import TrainerDashboard from "../pages/TrainerDashboard";
+import TraineeDashboard from "../pages/TraineeDashboard";
+import RoleManagement from "../pages/RoleManagement";
+import ChallengeList from '../pages/ChallengeList';
+import ChallengeDetail from '../pages/ChallengeDetail';
+import SubmissionList from '../pages/SubmissionList';
+import Notifications from '../pages/Notifications';
+import Assignments from '../pages/Assignments';
+import AssignmentForm from '../pages/AssignmentForm';
+import AssignmentDetail from '../pages/AssignmentDetail';
 import PrivateRoute from "./PrivateRoute";
 import RoleRoute from "./RoleRoute"; // A new role-based route component
 import { AuthProvider } from "../context/authContext";
@@ -84,6 +85,7 @@ const AppRouter = () => {
           <Route path="/notifications" element={<PrivateRoute element={<Notifications />} />} />
           <Route path="/assignments" element={<PrivateRoute element={<Assignments />} />} />
           <Route path="/assignments/create" element={<RoleRoute element={<AssignmentForm />} roles={['manager', 'admin']} />} />
+          <Route path="/assignments/:id" element={<PrivateRoute element={<AssignmentDetail />} />} />
         </Routes>
       </Router>
     </AuthProvider>

@@ -43,6 +43,7 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     if (token) {
       const decoded = jwtDecode(token);
+      console.log("in auth context ", decoded.user);
       dispatch({
         type: 'LOGIN_SUCCESS',
         payload: { token, user: decoded.user },

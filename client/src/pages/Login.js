@@ -1,13 +1,14 @@
 import React, { useState, useContext } from 'react';
 import AuthContext from '../context/authContext';
-import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
+import { Box, Button, FormControl, FormLabel, Input, Heading, Text, useToast } from "@chakra-ui/react";
 
 const Login = () => {
   const { login } = useContext(AuthContext);
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState([]);
   const navigate = useNavigate();
+  const toast = useToast();
 
   const { email, password } = formData;
 
@@ -17,33 +18,49 @@ const Login = () => {
     e.preventDefault();
     try {
       await login(formData);
-      toast.success('Login successful');
+      toast({
+        title: 'Login successful',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
       navigate('/profile');
     } catch (err) {
       if (err.response && err.response.data.errors) {
         setErrors(err.response.data.errors);
+        toast({
+          title: 'Login failed',
+          description: err.response.data.errors.map(error => error.msg).join(', '),
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
       }
     }
   };
 
   return (
-    <div>
-      <h1>Login</h1>
+    <Box p={4}>
+      <Heading mb={6}>Login</Heading>
       <form onSubmit={onSubmit}>
-        <input type="email" name="email" value={email} onChange={onChange} required />
-        <input type="password" name="password" value={password} onChange={onChange} required />
-        <button type="submit">Login</button>
+        <FormControl mb={4}>
+          <FormLabel>Email</FormLabel>
+          <Input type="email" name="email" value={email} onChange={onChange} />
+        </FormControl>
+        <FormControl mb={4}>
+          <FormLabel>Password</FormLabel>
+          <Input type="password" name="password" value={password} onChange={onChange} />
+        </FormControl>
+        <Button type="submit" colorScheme="brand">Login</Button>
       </form>
       {errors.length > 0 && (
-        <div>
+        <Box mt={4}>
           {errors.map((error, index) => (
-            <p key={index} style={{ color: 'red' }}>
-              {error.msg}
-            </p>
+            <Text key={index} color="red.500">{error.msg}</Text>
           ))}
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 };
 

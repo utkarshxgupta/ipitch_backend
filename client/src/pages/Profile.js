@@ -1,12 +1,13 @@
 import React, { useContext, useState } from 'react';
 import AuthContext from '../context/authContext';
 import axios from 'axios';
-import { toast } from 'react-toastify';
+import { Box, Button, FormControl, FormLabel, Input, Heading, Text, useToast } from "@chakra-ui/react";
 
 const Profile = () => {
   const { user, token } = useContext(AuthContext);
   const [formData, setFormData] = useState({ name: user.name, email: user.email });
   const [message, setMessage] = useState('');
+  const toast = useToast();
 
   const { name, email } = formData;
 
@@ -19,22 +20,43 @@ const Profile = () => {
     };
     try {
       const res = await axios.put('http://localhost:5000/api/auth/update', formData, config);
-      toast.success('Profile updated successfully');
+      toast({
+        title: 'Profile updated successfully',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+      setMessage('Profile updated successfully');
     } catch (err) {
-      toast.error('Error updating profile');
+      toast({
+        title: 'Failed to update profile',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
     }
   };
 
   return (
-    <div>
-      <h1>Profile</h1>
+    <Box p={4}>
+      <Heading mb={6}>Profile</Heading>
       <form onSubmit={onSubmit}>
-        <input type="text" name="name" value={name} onChange={onChange} required />
-        <input type="email" name="email" value={email} onChange={onChange} required />
-        <button type="submit">Update Profile</button>
+        <FormControl mb={4}>
+          <FormLabel>Name</FormLabel>
+          <Input type="text" name="name" value={name} onChange={onChange} />
+        </FormControl>
+        <FormControl mb={4}>
+          <FormLabel>Email</FormLabel>
+          <Input type="email" name="email" value={email} onChange={onChange} />
+        </FormControl>
+        <Button type="submit" colorScheme="brand">Update Profile</Button>
       </form>
-      {message && <p>{message}</p>}
-    </div>
+      {message && (
+        <Box mt={4}>
+          <Text color="green.500">{message}</Text>
+        </Box>
+      )}
+    </Box>
   );
 };
 

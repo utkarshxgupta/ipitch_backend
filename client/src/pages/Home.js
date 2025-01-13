@@ -1,19 +1,20 @@
 import React, { useContext } from 'react';
 import AuthContext from '../context/authContext';
+import { Box, Button, Heading, Text } from "@chakra-ui/react";
 
 const Home = () => {
   const { user, logout } = useContext(AuthContext);
-
+  console.log(user);
   return (
-    <div>
-      <h1>Home Page</h1>
+    <Box p={4}>
+      <Heading as="h1" size="xl" mb={4}>Home Page</Heading>
       {user && (
-        <div>
-          <p>Welcome, {user.name}</p>
-          <button onClick={logout}>Logout</button>
-        </div>
+        <Box>
+          <Text fontSize="lg">Welcome, {user.name}</Text>
+          <Button onClick={logout} colorScheme="brand" mt={2}>Logout</Button>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 };
 
