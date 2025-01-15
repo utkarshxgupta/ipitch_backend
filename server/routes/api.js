@@ -4,7 +4,7 @@ const { auth, roleCheck } = require('../middleware/authMiddleware');
 const { getExamples, createExample } = require('../controllers/exampleController');
 const { getUsers, updateUserRoles, getUserById } = require('../controllers/adminController');
 const { getChallenges, createChallenge, getChallengeById } = require('../controllers/challengeController');
-const { createSubmission, getSubmissionsByChallengeId, evaluateSubmission } = require('../controllers/submissionController');
+const { createSubmission, getSubmissionsByChallengeId, evaluateSubmission, getSubmissionsByAssignmentId } = require('../controllers/submissionController');
 const { getNotifications, markAsRead } = require('../controllers/notificationController');
 const { createAssignment, getAssignments, getAssignmentsByUser, getAssignmentById } = require('../controllers/assignmentController');
 const router = express.Router();
@@ -49,6 +49,7 @@ router.get('/challenges/:id', getChallengeById);
 router.post('/submissions', auth, roleCheck(['trainee']), createSubmission);
 router.get('/submissions/:id', auth, roleCheck(['trainer', 'manager', 'admin']), getSubmissionsByChallengeId);
 router.post('/submissions/:id/evaluate', auth, roleCheck(['trainer', 'manager', 'admin']), evaluateSubmission);
+router.get('/submissions/user/assignment/:id', auth, getSubmissionsByAssignmentId);
 
 // Notification routes
 router.get('/notifications', auth, getNotifications);
@@ -58,6 +59,6 @@ router.put('/notifications/:id/read', auth, markAsRead);
 router.post('/assignments', auth, roleCheck(['manager', 'admin']), createAssignment);
 router.get('/assignments', auth, roleCheck(['manager', 'admin']), getAssignments);
 router.get('/assignments/user', auth, getAssignmentsByUser);
-router.get('/assignments/:id', auth, roleCheck(['manager', 'admin']), getAssignmentById);
+router.get('/assignments/:id', auth, getAssignmentById);
 
 module.exports = router;

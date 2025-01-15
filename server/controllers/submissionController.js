@@ -7,6 +7,7 @@ const Assignment = require('../models/Assignment');
 // @access   Private (Trainee)
 exports.createSubmission = async (req, res) => {
   try {
+    console.log("We are in create submission ", req.body);
     const { assignmentId, challengeId, pitch } = req.body;
     const assignment = await Assignment.findById(assignmentId);
     if (!assignment) {
@@ -18,8 +19,8 @@ exports.createSubmission = async (req, res) => {
     }
 
     const newSubmission = new Submission({
-      assignment: assignmentId,
-      challenge: challengeId,
+      assignment: assignment,
+      challenge: challenge,
       trainee: req.user.id,
       pitch
     });
@@ -67,6 +68,21 @@ exports.evaluateSubmission = async (req, res) => {
     submission.evaluations.unshift(newEvaluation);
     await submission.save();
     res.json(submission);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Server Error');
+  }
+};
+
+// @desc Get all submissions made by a user in a particular assignment
+// @route GET /api/submissions/user/:assignmentId
+// @access Private (Trainee)
+exports.getSubmissionsByAssignmentId = async (req, res) => {
+  try {
+    console.log("WE ARE TRYING TO GET USER SUBMISSIONS for ", req.user.id, "assignment", req.params.id);
+    const submissions = await Submission.find({ trainee: req.user.id, assignment: req.params.id });
+    console.log(submissions);
+    res.json(submissions);
   } catch (error) {
     console.error(error);
     res.status(500).send('Server Error');

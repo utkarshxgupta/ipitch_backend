@@ -50,16 +50,30 @@ exports.getAssignmentsByUser = async (req, res) => {
 
 // @route    GET api/assignments/:id
 // @desc     Get assignment by ID
-// @access   Private (Manager/Admin)
+// @access   Private
 exports.getAssignmentById = async (req, res) => {
   try {
-    const assignment = await Assignment.findById(req.params.id).populate('challenges assignedUsers');
+    // if user role is not manager or admin, check if the assignment is assigned to the user and we don't need to send assignedUsers
+    console.log("REQ USER ", req.user);
+    const isManagerAdmin = req.user.role.includes("manager") || req.user.role.includes("admin");
+
+    const assignment = await Assignment.findById(req.params.id).populate(
+      "challenges" +
+        (isManagerAdmin
+          ? " assignedUsers"
+          : "")
+    );
     if (!assignment) {
       return res.status(404).json({ msg: "Assignment not found" });
     }
+    if (!isManagerAdmin) {
+      assignment.assignedUsers = null;
+    }
+
     res.json(assignment);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
   }
 };
+
