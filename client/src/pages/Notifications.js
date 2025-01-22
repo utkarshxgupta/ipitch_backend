@@ -33,10 +33,17 @@ const Notifications = () => {
   }, [token, toast]);
 
   return (
-    <Box p={4}>
-      <Heading mb={6}>Notifications</Heading>
+    <Box p={2} maxW="md" mx="auto">
+      <Heading size="md" mb={6}>Notifications</Heading>
       {loading ? (
         <Spinner size="xl" />
+      ) : notifications.length === 0 ? (
+        <Box textAlign="center" py={10} px={6}>
+          <Heading as="h2" size="md" mb={2}>
+            You're all caught up!
+          </Heading>
+          <Text>No new notifications.</Text>
+        </Box>
       ) : (
         <List spacing={3}>
           {notifications.map((notification) => (

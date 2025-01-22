@@ -1,22 +1,44 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import AuthContext from "../context/authContext";
 import {
   Box,
   Button,
+  Container,
   FormControl,
   FormLabel,
   Input,
-  Heading,
   VStack,
+  SimpleGrid,
+  Progress,
   Text,
+  Heading,
+  HStack,
+  useColorModeValue,
+  IconButton,
+  Checkbox,
+  Avatar,
+  Badge,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  useDisclosure,
   Grid,
   GridItem,
   useToast,
-  Divider
+  Divider,
+  InputGroup,
+  InputLeftElement,
+  Center,
+  Spinner
 } from "@chakra-ui/react";
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '@chakra-ui/icons';
 import SelectModal from "../components/SelectModal";
+import _ from 'lodash';
 
 const AssignmentForm = () => {
   const { token, user } = useContext(AuthContext);
@@ -27,8 +49,38 @@ const AssignmentForm = () => {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [filteredUsers, setFilteredUsers] = useState([]);
   const toast = useToast();
+
+  const searchUsers = (query) => {
+    const filtered = users.filter(user => 
+      user.name.toLowerCase().includes(query.toLowerCase()) ||
+      user.email.toLowerCase().includes(query.toLowerCase())
+    );
+    setFilteredUsers(filtered);
+  };
+
+  const handleChallengeSelect = (challengeId) => {
+    setSelectedChallenges(prev => 
+      prev.includes(challengeId)
+        ? prev.filter(id => id !== challengeId)
+        : [...prev, challengeId]
+    );
+  };
+
+  const handleUserSelect = (userId) => {
+    setSelectedUsers(prev => 
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+  
   const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const bgColor = useColorModeValue('white', 'gray.700');
 
   useEffect(() => {
     const fetchChallenges = async () => {
@@ -74,6 +126,7 @@ const AssignmentForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     if (selectedChallenges.length === 0) {
       toast({
@@ -82,6 +135,7 @@ const AssignmentForm = () => {
         duration: 5000,
         isClosable: true,
       });
+      setIsSubmitting(false);
       return;
     }
 
@@ -92,6 +146,7 @@ const AssignmentForm = () => {
         duration: 5000,
         isClosable: true,
       });
+      setIsSubmitting(false);
       return;
     }
 
@@ -101,7 +156,7 @@ const AssignmentForm = () => {
         {
           name,
           challenges: selectedChallenges,
-          assignedUsers: selectedUsers,
+          users: selectedUsers,
           startDate,
           endDate,
         },
@@ -113,115 +168,178 @@ const AssignmentForm = () => {
       toast({
         title: "Assignment created successfully",
         status: "success",
-        duration: 5000,
+        duration: 3000,
         isClosable: true,
       });
 
-      if (user.role === "manager") {
-        navigate("/manager");
-      } else {
-        navigate("/admin");
-      }
-    } catch (err) {
-      console.error(err);
+      onClose(); // Close any open modal
+      navigate('/manager'); // Navigate to manager dashboard
+      
+    } catch (error) {
       toast({
-        title: "Failed to create assignment",
+        title: "Error creating assignment",
+        description: error.response?.data?.message || "Something went wrong",
         status: "error",
         duration: 5000,
         isClosable: true,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  return (
-    <Box
-      as="form"
-      onSubmit={handleSubmit}
-      p={6}
-      borderWidth={1}
-      borderRadius="lg"
-      boxShadow="lg"
-    >
-      <Heading as="h2" size="lg" mb={4} textAlign="center">
-        Create Assignment
-      </Heading>
-      <Text mb={6} textAlign="center">
-        Fill out the form below to create a new assignment.
-      </Text>
-      <VStack spacing={6} align="stretch">
-        <FormControl isRequired>
-          <FormLabel>Assignment Name</FormLabel>
-          <Input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </FormControl>
+  const steps = [
+    { title: 'Basic Info', fields: ['name'] },
+    { title: 'Select Challenges', fields: ['challenges'] },
+    { title: 'Assign Users', fields: ['users'] },
+    { title: 'Set Timeline', fields: ['dates'] }
+  ];
 
-        <Divider />
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredChallenges, setFilteredChallenges] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
 
-        <Box>
-          <Text fontWeight="bold" mb={2}>
-            Select Challenges
-          </Text>
-          <Button onClick={() => setShowChallengesModal(true)} mb={3}>
-            Choose Challenges
-          </Button>
-          {selectedChallenges.length > 0 && (
-            <Box p={2} borderWidth={1} borderRadius="md">
-              {challenges
-                .filter((ch) => selectedChallenges.includes(ch._id))
-                .map((ch) => (
-                  <Text key={ch._id}>{ch.name}</Text>
-                ))}
+  const debouncedSearch = useCallback(
+    _.debounce((query, type) => {
+      setIsSearching(true);
+      if (type === 'challenges') {
+        const results = challenges.filter(challenge => 
+          challenge.name.toLowerCase().includes(query.toLowerCase()) ||
+          challenge.description.toLowerCase().includes(query.toLowerCase())
+        );
+        setFilteredChallenges(results);
+      } else {
+        const results = users.filter(user => 
+          user.name.toLowerCase().includes(query.toLowerCase()) ||
+          user.email.toLowerCase().includes(query.toLowerCase())
+        );
+        setFilteredUsers(results);
+      }
+      setIsSearching(false);
+    }, 300),
+    [challenges, users]
+  );
+
+  const renderChallengeSelection = () => (
+    <VStack spacing={4} align="stretch">
+      <InputGroup>
+        <InputLeftElement children={<SearchIcon color="gray.400" />} />
+        <Input
+          placeholder="Search challenges..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            debouncedSearch(e.target.value, 'challenges');
+          }}
+        />
+      </InputGroup>
+
+      {isSearching ? (
+        <Center p={8}><Spinner /></Center>
+      ) : filteredChallenges.length === 0 ? (
+        <Text textAlign="center" color="gray.500">No challenges found</Text>
+      ) : (
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          {filteredChallenges.map(challenge => (
+            <Box
+              key={challenge._id}
+              p={4}
+              borderWidth={1}
+              borderRadius="lg"
+              cursor="pointer"
+              bg={selectedChallenges.includes(challenge._id) ? 'brand.50' : bgColor}
+              onClick={() => handleChallengeSelect(challenge._id)}
+              _hover={{ borderColor: 'brand.500' }}
+            >
+              <HStack justify="space-between">
+                <VStack align="start">
+                  <Heading size="sm">{challenge.name}</Heading>
+                  <Text noOfLines={2} color="gray.500">
+                    {challenge.description}
+                  </Text>
+                </VStack>
+                <Checkbox 
+                  isChecked={selectedChallenges.includes(challenge._id)}
+                  onChange={() => {}}
+                />
+              </HStack>
             </Box>
-          )}
-        </Box>
+          ))}
+        </SimpleGrid>
+      )}
+    </VStack>
+  );
 
-        <Divider />
+  const renderUserSelection = () => (
+    <VStack spacing={4} align="stretch">
+      <InputGroup>
+        <InputLeftElement children={<SearchIcon color="gray.400" />} />
+        <Input
+          placeholder="Search users..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            debouncedSearch(e.target.value, 'users');
+          }}
+        />
+      </InputGroup>
 
-        <Box>
-          <Text fontWeight="bold" mb={2}>
-            Select Users
-          </Text>
-          <Button onClick={() => setShowUsersModal(true)} mb={3}>
-            Choose Users
-          </Button>
-          {selectedUsers.length > 0 && (
-            <Box p={2} borderWidth={1} borderRadius="md">
-              {users
-                .filter((u) => selectedUsers.includes(u._id))
-                .map((u) => (
-                  <Text key={u._id}>{u.name}</Text>
-                ))}
-            </Box>
-          )}
-        </Box>
+      {isSearching ? (
+        <Center p={8}><Spinner /></Center>
+      ) : filteredUsers.length === 0 ? (
+        <Text textAlign="center" color="gray.500">No users found</Text>
+      ) : (
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          {filteredUsers.map(user => (
+            <HStack
+              key={user._id}
+              p={4}
+              borderWidth={1}
+              borderRadius="lg"
+              justify="space-between"
+              _hover={{ borderColor: 'brand.500' }}
+            >
+              <HStack>
+                <Avatar size="sm" name={user.name} />
+                <VStack align="start" spacing={0}>
+                  <Text fontWeight="medium">{user.name}</Text>
+                  <Text fontSize="sm" color="gray.500">{user.email}</Text>
+                </VStack>
+              </HStack>
+              <Checkbox
+                isChecked={selectedUsers.includes(user._id)}
+                onChange={() => handleUserSelect(user._id)}
+              />
+            </HStack>
+          ))}
+        </SimpleGrid>
+      )}
+    </VStack>
+  );
 
-        {showChallengesModal && (
-          <SelectModal
-            title="Select Challenges"
-            items={challenges}
-            selectedItems={selectedChallenges}
-            setSelectedItems={setSelectedChallenges}
-            onClose={() => setShowChallengesModal(false)}
-          />
-        )}
-
-        {showUsersModal && (
-          <SelectModal
-            title="Select Users"
-            items={users}
-            selectedItems={selectedUsers}
-            setSelectedItems={setSelectedUsers}
-            onClose={() => setShowUsersModal(false)}
-          />
-        )}
-
-        <Divider />
-
-        <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-          <GridItem>
+  const renderStep = () => {
+    switch(step) {
+      case 1:
+        return (
+          <FormControl isRequired>
+            <FormLabel>Assignment Name</FormLabel>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter assignment name"
+            />
+          </FormControl>
+        );
+      
+      case 2:
+        return renderChallengeSelection();
+      
+      case 3:
+        return renderUserSelection();
+      
+      case 4:
+        return (
+          <SimpleGrid columns={2} spacing={4}>
             <FormControl isRequired>
               <FormLabel>Start Date</FormLabel>
               <Input
@@ -230,8 +348,6 @@ const AssignmentForm = () => {
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </FormControl>
-          </GridItem>
-          <GridItem>
             <FormControl isRequired>
               <FormLabel>End Date</FormLabel>
               <Input
@@ -240,14 +356,106 @@ const AssignmentForm = () => {
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </FormControl>
-          </GridItem>
-        </Grid>
+          </SimpleGrid>
+        );
+      
+      default:
+        return null;
+    }
+  };
 
-        <Button type="submit" colorScheme="brand" w="100%" mt={4}>
-          Create Assignment
-        </Button>
+  return (
+    <Container maxW="container.md" py={8}>
+      <VStack spacing={8}>
+        <Box w="100%" p={6} bg={bgColor} borderRadius="lg" boxShadow="sm">
+          <VStack spacing={6}>
+            <Heading size="lg">Create Assignment</Heading>
+            <Progress
+              value={(step / steps.length) * 100}
+              w="100%"
+              colorScheme="brand"
+              borderRadius="full"
+            />
+            <Text>Step {step} of {steps.length}: {steps[step-1].title}</Text>
+          </VStack>
+        </Box>
+
+        <Box w="100%" p={6} bg={bgColor} borderRadius="lg" boxShadow="sm">
+          <form onSubmit={handleSubmit}>
+            <VStack spacing={6}>
+              {renderStep()}
+              
+              <HStack w="100%" justify="space-between">
+                <Button
+                  onClick={() => setStep(step - 1)}
+                  isDisabled={step === 1}
+                  leftIcon={<ChevronLeftIcon />}
+                >
+                  Previous
+                </Button>
+                {step < steps.length ? (
+                  <Button
+                    onClick={() => setStep(step + 1)}
+                    colorScheme="brand"
+                    rightIcon={<ChevronRightIcon />}
+                  >
+                    Next
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={onOpen}
+                    colorScheme="brand"
+                    isLoading={isSubmitting}
+                  >
+                    Create Assignment
+                  </Button>
+                )}
+              </HStack>
+            </VStack>
+          </form>
+        </Box>
       </VStack>
-    </Box>
+
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Confirm Assignment Creation</ModalHeader>
+          <ModalBody>
+            <VStack align="start" spacing={4}>
+              <Text>Please review the assignment details:</Text>
+              <Box>
+                <Text fontWeight="bold">Name:</Text>
+                <Text>{name}</Text>
+              </Box>
+              <Box>
+                <Text fontWeight="bold">Selected Challenges:</Text>
+                <Text>{selectedChallenges.length} challenges</Text>
+              </Box>
+              <Box>
+                <Text fontWeight="bold">Assigned Users:</Text>
+                <Text>{selectedUsers.length} users</Text>
+              </Box>
+              <Box>
+                <Text fontWeight="bold">Timeline:</Text>
+                <Text>{startDate} to {endDate}</Text>
+              </Box>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="brand"
+              onClick={handleSubmit}
+              isLoading={isSubmitting}
+            >
+              Confirm & Create
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </Container>
   );
 };
 

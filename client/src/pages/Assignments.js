@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
 import AuthContext from '../context/authContext';
-import { Box, Heading, Text, List, ListItem, Spinner, Link as ChakraLink, useToast } from "@chakra-ui/react";
+import { Box, Heading, Text, List, Spinner, useToast } from "@chakra-ui/react";
+import CustomListItem from '../components/ListItem';
 
 const Assignments = () => {
   const { token } = useContext(AuthContext);
@@ -41,23 +41,24 @@ const Assignments = () => {
     return <Text>No assignments found</Text>;
   }
 
+  const isActive = (startDate, endDate) => {
+    const now = new Date();
+    return new Date(startDate) <= now && now <= new Date(endDate);
+  };
+
   return (
     <Box>
-      <Heading as="h2" size="lg" mb={4}>Your Assignments</Heading>
       <List spacing={3}>
         {assignments.map(assignment => (
-          <ListItem key={assignment._id} p={4} borderWidth={1} borderRadius="lg">
-            <Heading as="h3" size="md">{assignment.name}</Heading>
-            <Text><strong>Start Date:</strong> {new Date(assignment.startDate).toLocaleDateString()}</Text>
-            <Text><strong>End Date:</strong> {new Date(assignment.endDate).toLocaleDateString()}</Text>
-            <List spacing={2} mt={2}>
-              {assignment.challenges.map(challenge => (
-                <ListItem key={challenge._id}>
-                  <ChakraLink as={Link} to={`/challenges/${challenge._id}`}>{challenge.name}</ChakraLink>
-                </ListItem>
-              ))}
-            </List>
-          </ListItem>
+          <CustomListItem
+            key={assignment._id}
+            id={assignment.id}
+            heading={assignment.name}
+            subheading={"Created on " + new Date(assignment.createdAt).toLocaleDateString()}
+            badgeText={isActive(assignment.startDate, assignment.endDate) ? "Active" : "Inactive"}
+            badgeColor={isActive(assignment.startDate, assignment.endDate) ? "green" : "red"}
+            link={`/assignments/${assignment._id}`}
+          />
         ))}
       </List>
     </Box>

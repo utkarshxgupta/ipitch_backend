@@ -1,0 +1,10 @@
+{
+    "name": "ipitch",
+    "version": "1.0.0",
+    "scripts": {
+      "client": "npm start --prefix client",
+      "server": "npm start --prefix server",
+      "dev": "concurrently \"npm run server\" \"npm run client\""
+    }
+  }
+  

@@ -35,7 +35,6 @@ const AssignmentList = () => {
 
   return (
     <Box p={5}>
-      <Heading mb={5}>Assignments</Heading>
       <List spacing={3}>
         {assignments.map((assignment) => (
           <CustomListItem
