@@ -57,19 +57,18 @@ exports.getAssignmentById = async (req, res) => {
     console.log("REQ USER ", req.user);
     const isManagerAdmin = req.user.role.includes("manager") || req.user.role.includes("admin");
 
-    const assignment = await Assignment.findById(req.params.id).populate(
-      "challenges" +
-        (isManagerAdmin
-          ? " assignedUsers"
-          : "")
-    );
+    const assignment = await Assignment.findById(req.params.id).populate([
+      { path: "challenges" },
+      { path: "createdBy", select: "name" },
+      ...(isManagerAdmin ? [{ path: "assignedUsers", select: "name email" }] : [])
+    ]);
     if (!assignment) {
       return res.status(404).json({ msg: "Assignment not found" });
     }
     if (!isManagerAdmin) {
       assignment.assignedUsers = null;
     }
-
+    console.log("ASSIGNMENT ", assignment);
     res.json(assignment);
   } catch (err) {
     console.error(err.message);

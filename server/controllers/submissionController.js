@@ -109,16 +109,10 @@ exports.evaluateSubmission = async (req, res) => {
 // @access Private (Trainee)
 exports.getSubmissionsByAssignmentId = async (req, res) => {
   try {
-    console.log(
-      "WE ARE TRYING TO GET USER SUBMISSIONS for ",
-      req.user.id,
-      "assignment",
-      req.params.id
-    );
     const submissions = await Submission.find({
       trainee: req.user.id,
       assignment: req.params.id,
-    });
+    }).populate("challenge", ["name"]);
     console.log(submissions);
     res.json(submissions);
   } catch (error) {
@@ -133,7 +127,12 @@ exports.getSubmissionsByAssignmentId = async (req, res) => {
 exports.getSubmissionById = async (req, res) => {
   try {
     console.log("WE ARE INSIDE GET SUBMISSIONS BY ID");
-    const submission = await Submission.findById(req.params.id);
+    const submission = await Submission.findById(req.params.id).populate([
+      {path: "trainee", select: "name"},
+      {path: "challenge", select: "name"},
+      {path: "assignment", select: "name"},
+      {path: "comments.commenter", select: "name"},
+    ]);
     // if user role is trainee, then check if the submission belongs to the user
     if (req.user.role.includes("trainee")) {
       if (submission.trainee.toString() !== req.user.id) {

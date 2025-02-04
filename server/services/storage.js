@@ -31,13 +31,9 @@ class StorageService {
         blobStream.on("error", (error) => {
           reject(error);
         });
-
         blobStream.on("finish", async () => {
-          // Generate a signed URL that expires in 1 hour
-          const [url] = await blob.getSignedUrl({
-            action: "read",
-            expires: Date.now() + 3600000, // 1 hour
-          });
+          // Get the public URL
+          const url = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
 
           resolve({
             fileName: fileName,
