@@ -13,12 +13,15 @@ import {
   VStack,
   Container,
   Progress,
-  SimpleGrid,
   Text,
-  IconButton,
   useColorModeValue,
   FormHelperText,
   HStack,
+  Tag,
+  TagLabel,
+  TagCloseButton,
+  Wrap,
+  WrapItem
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
@@ -34,21 +37,40 @@ const ChallengeForm = () => {
   });
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [criteriaInput, setCriteriaInput] = useState('');
+  const [evaluationCriteria, setEvaluationCriteria] = useState([]);
   const bgColor = useColorModeValue('white', 'gray.700');
   const navigate = useNavigate();
 
-  const { name, description, prompts, idealPitch, evaluationCriteria } = formData;
+  const { name, description, prompts, idealPitch } = formData;
   const toast = useToast();
   const onChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    
+    // Add validation check
+    if (evaluationCriteria.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'Please add at least one evaluation criterion',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      const formDataToSend = {
+        ...formData,
+        evaluationCriteria: evaluationCriteria // This will send the array of criteria
+      };
+
       await axios.post(
         'http://localhost:5000/api/challenges',
-        formData,
+        formDataToSend,
         { headers: { 'x-auth-token': token } }
       );
       
@@ -69,6 +91,20 @@ const ChallengeForm = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCriteriaKeyDown = (e) => {
+    if ((e.key === 'Tab' || e.key === 'Enter') && criteriaInput.trim()) {
+      e.preventDefault();
+      if (!evaluationCriteria.includes(criteriaInput.trim())) {
+        setEvaluationCriteria([...evaluationCriteria, criteriaInput.trim()]);
+      }
+      setCriteriaInput('');
+    }
+  };
+
+  const removeCriteria = (indexToRemove) => {
+    setEvaluationCriteria(evaluationCriteria.filter((_, index) => index !== indexToRemove));
   };
 
   const steps = [
@@ -133,19 +169,34 @@ const ChallengeForm = () => {
         );
       case 3:
         return (
-          <VStack spacing={4}>
-            <FormControl isRequired>
+          <VStack spacing={4} align="stretch">
+            <FormControl isRequired={evaluationCriteria.length === 0}>
               <FormLabel>Evaluation Criteria</FormLabel>
-              <Textarea
-                name="evaluationCriteria"
-                value={evaluationCriteria}
-                onChange={onChange}
-                placeholder="Enter evaluation criteria"
-                minH="200px"
+              <Input
+                value={criteriaInput}
+                onChange={(e) => setCriteriaInput(e.target.value)}
+                onKeyDown={handleCriteriaKeyDown}
+                placeholder="Type criteria and press Tab/Enter"
+                mb={2}
               />
               <FormHelperText>
-                Specify how submissions will be evaluated
+                Press Tab or Enter to add each criterion
               </FormHelperText>
+              {evaluationCriteria.length === 0 && (
+                <FormHelperText color="red.500">
+                  At least one evaluation criterion is required
+                </FormHelperText>
+              )}
+              <Wrap spacing={2} mt={3}>
+                {evaluationCriteria.map((criteria, index) => (
+                  <WrapItem key={index}>
+                    <Tag size="md" borderRadius="full" variant="solid" colorScheme="brand">
+                      <TagLabel>{criteria}</TagLabel>
+                      <TagCloseButton onClick={() => removeCriteria(index)} />
+                    </Tag>
+                  </WrapItem>
+                ))}
+              </Wrap>
             </FormControl>
           </VStack>
         );

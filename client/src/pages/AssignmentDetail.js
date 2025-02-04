@@ -107,7 +107,7 @@ const AssignmentDetail = () => {
 
             <HStack>
               <Icon as={FaUser} color="brand.500" />
-              <Text>Created by: {assignment.createdBy}</Text>
+              <Text>Created by: {assignment.createdBy.name}</Text>
             </HStack>
           </VStack>
         </Box>

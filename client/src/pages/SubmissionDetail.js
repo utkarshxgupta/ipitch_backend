@@ -254,8 +254,17 @@ const SubmissionDetail = () => {
                 Details
               </Heading>
               <VStack align="stretch" spacing={4}>
+                {/* Add Challenge and Assignment info */}
                 <HStack justify="space-between">
-                  <Text fontWeight="bold">Status</Text>
+                  <Text fontWeight="bold">Challenge</Text>
+                  <Text>{submission.challenge?.name || "N/A"}</Text>
+                </HStack>
+                <HStack justify="space-between">
+                  <Text fontWeight="bold">Assignment</Text>
+                  <Text>{submission.assignment?.name || "N/A"}</Text>
+                </HStack>
+                <HStack justify="space-between">
+                  <Text fontWeight="bold">Transcription Status</Text>
                   <Badge
                     colorScheme={
                       submission.transcriptionStatus === "completed"
@@ -267,7 +276,11 @@ const SubmissionDetail = () => {
                   </Badge>
                 </HStack>
                 <HStack justify="space-between">
-                  <Text fontWeight="bold">Submitted</Text>
+                  <Text fontWeight="bold">Submitted by</Text>
+                  <Text>{submission.trainee?.name || "N/A"}</Text>
+                </HStack>
+                <HStack justify="space-between">
+                  <Text fontWeight="bold">Submitted on</Text>
                   <Text>
                     {new Date(submission.submittedDate).toLocaleString()}
                   </Text>

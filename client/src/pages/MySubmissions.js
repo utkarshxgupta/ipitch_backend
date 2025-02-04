@@ -58,7 +58,7 @@ const MySubmissions = ({ assignmentId }) => {
             <CustomListItem
               key={submission._id}
               id={submission._id}
-              heading={submission.videoFileName}
+              heading={submission.challenge.name}
               subheading={new Date(submission.submittedDate).toLocaleString()}
               badgeText={submission.transcriptionStatus}
               badgeColor={submission.transcriptionStatus === "completed" ? "green" : "red"}
