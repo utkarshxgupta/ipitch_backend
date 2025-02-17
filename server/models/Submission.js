@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { SpeechMetricsSchema } = require('./SpeechMetrics');
 
 const SubmissionSchema = new mongoose.Schema({
   assignment: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
@@ -11,6 +12,10 @@ const SubmissionSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'processing', 'completed', 'failed'],
     default: 'pending'
+  },
+  speechMetrics: {
+    type: SpeechMetricsSchema,
+    default: null
   },
   submittedDate: { type: Date, default: Date.now },
   evaluations: [
@@ -31,7 +36,19 @@ const SubmissionSchema = new mongoose.Schema({
       text: { type: String, required: true },
       createdAt: { type: Date, default: Date.now }
     }
-  ]
+  ],
+  automaticEvaluation: {
+    score: { type: Number },
+    details: [{
+      keyword: { type: String },
+      occurrences: { type: Number },
+      weight: { type: Number },
+      score: { type: Number }
+    }],
+    rawScore: { type: Number },
+    maxPossibleScore: { type: Number },
+    evaluatedAt: { type: Date }
+  }
 });
 
 module.exports = mongoose.model('Submission', SubmissionSchema);

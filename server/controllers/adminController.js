@@ -47,3 +47,22 @@ exports.updateUserRoles = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+
+// @route    PUT api/admin/users/:id
+// @desc     Enable or disable the user
+// @access   Private (Admin only)
+exports.modifyUserAccess = async (req, res) => {
+  const { isActive } = req.body;
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+    user.isActive = isActive;
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};

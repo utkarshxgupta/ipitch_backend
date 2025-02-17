@@ -34,8 +34,13 @@ import {
   Alert,
   AlertIcon,
   SimpleGrid,
+  List,
+  ListItem,
+  Tag,
+  TagLabel,
+  TagLeftIcon,
 } from "@chakra-ui/react";
-import { FaClipboard, FaTrophy, FaUserGraduate, FaClock, FaUser } from 'react-icons/fa';
+import { FaClipboard, FaTrophy, FaUserGraduate, FaClock, FaUser, FaPlus, FaMinus } from 'react-icons/fa';
 
 const ChallengeDetail = () => {
   const { id } = useParams();
@@ -111,20 +116,32 @@ const ChallengeDetail = () => {
                     <Heading size="md" mb={4}>Challenge Details</Heading>
                     <VStack align="stretch" spacing={4}>
                       <HStack>
-                        <Icon as={FaClipboard} color="brand.500" />
-                        <Text fontWeight="bold">Prompts:</Text>
-                        <Text>{challenge.prompts.join(", ")}</Text>
-                      </HStack>
-                      <HStack>
                         <Icon as={FaTrophy} color="brand.500" />
                         <Text fontWeight="bold">Ideal Pitch:</Text>
                         <Text>{challenge.idealPitch}</Text>
                       </HStack>
-                      <HStack>
-                        <Icon as={FaUserGraduate} color="brand.500" />
-                        <Text fontWeight="bold">Evaluation Criteria:</Text>
-                        <Text>{challenge.evaluationCriteria.join(", ")}</Text>
-                      </HStack>
+                      <VStack align="stretch">
+                        <HStack>
+                          <Icon as={FaUserGraduate} color="brand.500" />
+                          <Text fontWeight="bold">Evaluation Criteria:</Text>
+                        </HStack>
+                        <List spacing={2} pl={8}>
+                          {challenge.evaluationCriteria.map((criteria, index) => (
+                            <ListItem key={index}>
+                              <Tag
+                                size="md"
+                                variant="subtle"
+                                colorScheme={criteria.weight > 0 ? "green" : "red"}
+                              >
+                                <TagLeftIcon as={criteria.weight > 0 ? FaPlus : FaMinus} />
+                                <TagLabel>
+                                  {criteria.keyword} ({criteria.weight > 0 ? '+' : ''}{criteria.weight})
+                                </TagLabel>
+                              </Tag>
+                            </ListItem>
+                          ))}
+                        </List>
+                      </VStack>
                     </VStack>
                   </Box>
 

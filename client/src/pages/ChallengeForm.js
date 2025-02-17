@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import AuthContext from '../context/authContext';
+import CriteriaInput from '../components/CriteriaInput';
 import {
   Box,
   Button,
@@ -16,13 +17,7 @@ import {
   Text,
   useColorModeValue,
   FormHelperText,
-  HStack,
-  Tag,
-  TagLabel,
-  TagCloseButton,
-  Wrap,
-  WrapItem
-} from "@chakra-ui/react";
+  HStack} from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
 
@@ -31,9 +26,7 @@ const ChallengeForm = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    prompts: '',
-    idealPitch: '',
-    evaluationCriteria: ''
+    idealPitch: ''
   });
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,7 +35,7 @@ const ChallengeForm = () => {
   const bgColor = useColorModeValue('white', 'gray.700');
   const navigate = useNavigate();
 
-  const { name, description, prompts, idealPitch } = formData;
+  const { name, description, idealPitch } = formData;
   const toast = useToast();
   const onChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -50,7 +43,6 @@ const ChallengeForm = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
     
-    // Add validation check
     if (evaluationCriteria.length === 0) {
       toast({
         title: 'Error',
@@ -65,7 +57,10 @@ const ChallengeForm = () => {
     try {
       const formDataToSend = {
         ...formData,
-        evaluationCriteria: evaluationCriteria // This will send the array of criteria
+        evaluationCriteria: evaluationCriteria.map(({ keyword, weight }) => ({
+          keyword,
+          weight
+        }))
       };
 
       await axios.post(
@@ -84,7 +79,7 @@ const ChallengeForm = () => {
     } catch (error) {
       toast({
         title: 'Error creating challenge',
-        description: error.response?.data?.message || 'Something went wrong',
+        description: error.response?.data?.msg || 'Something went wrong',
         status: 'error',
         duration: 3000,
       });
@@ -109,7 +104,7 @@ const ChallengeForm = () => {
 
   const steps = [
     { title: 'Basic Info', fields: ['name', 'description'] },
-    { title: 'Challenge Details', fields: ['prompts', 'idealPitch'] },
+    { title: 'Ideal Pitch', fields: ['idealPitch'] },
     { title: 'Evaluation', fields: ['evaluationCriteria'] }
   ];
 
@@ -146,16 +141,6 @@ const ChallengeForm = () => {
         return (
           <VStack spacing={4}>
             <FormControl isRequired>
-              <FormLabel>Prompts</FormLabel>
-              <Textarea
-                name="prompts"
-                value={prompts}
-                onChange={onChange}
-                placeholder="Enter guiding prompts"
-                minH="150px"
-              />
-            </FormControl>
-            <FormControl isRequired>
               <FormLabel>Ideal Pitch</FormLabel>
               <Textarea
                 name="idealPitch"
@@ -164,6 +149,9 @@ const ChallengeForm = () => {
                 placeholder="Describe the ideal pitch"
                 minH="150px"
               />
+              <FormHelperText>
+                Provide an example of what a good pitch should look like
+              </FormHelperText>
             </FormControl>
           </VStack>
         );
@@ -172,31 +160,22 @@ const ChallengeForm = () => {
           <VStack spacing={4} align="stretch">
             <FormControl isRequired={evaluationCriteria.length === 0}>
               <FormLabel>Evaluation Criteria</FormLabel>
-              <Input
-                value={criteriaInput}
-                onChange={(e) => setCriteriaInput(e.target.value)}
-                onKeyDown={handleCriteriaKeyDown}
-                placeholder="Type criteria and press Tab/Enter"
-                mb={2}
+              <CriteriaInput
+                criteria={evaluationCriteria}
+                onAdd={(newCriteria) => {
+                  setEvaluationCriteria([...evaluationCriteria, newCriteria]);
+                }}
+                onRemove={(index) => {
+                  setEvaluationCriteria(
+                    evaluationCriteria.filter((_, i) => i !== index)
+                  );
+                }}
               />
-              <FormHelperText>
-                Press Tab or Enter to add each criterion
-              </FormHelperText>
               {evaluationCriteria.length === 0 && (
                 <FormHelperText color="red.500">
                   At least one evaluation criterion is required
                 </FormHelperText>
               )}
-              <Wrap spacing={2} mt={3}>
-                {evaluationCriteria.map((criteria, index) => (
-                  <WrapItem key={index}>
-                    <Tag size="md" borderRadius="full" variant="solid" colorScheme="brand">
-                      <TagLabel>{criteria}</TagLabel>
-                      <TagCloseButton onClick={() => removeCriteria(index)} />
-                    </Tag>
-                  </WrapItem>
-                ))}
-              </Wrap>
             </FormControl>
           </VStack>
         );

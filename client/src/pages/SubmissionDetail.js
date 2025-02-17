@@ -28,6 +28,151 @@ import {
 } from "@chakra-ui/react";
 import AuthContext from "../context/authContext";
 
+// Add this new component after the existing imports and before other components
+
+const AutomaticEvaluationDisplay = ({ evaluation }) => {
+  const bgColor = useColorModeValue("white", "gray.700");
+  
+  if (!evaluation) return null;
+
+  return (
+    <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm" mb={6}>
+      <HStack justify="space-between" mb={4}>
+        <Heading size="md">Automatic Evaluation</Heading>
+        <Badge 
+          colorScheme={evaluation.score >= 70 ? "green" : "orange"}
+          fontSize="md"
+        >
+          Score: {evaluation.score}%
+        </Badge>
+      </HStack>
+
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={4}>
+        <Box>
+          <Text fontWeight="bold" mb={2}>Raw Score: {evaluation.rawScore}</Text>
+          <Text fontSize="sm" color="gray.500">
+            Out of maximum {evaluation.maxPossibleScore} points
+          </Text>
+        </Box>
+        <Box>
+          <Text fontWeight="bold" mb={2}>Evaluated On:</Text>
+          <Text fontSize="sm" color="gray.500">
+            {new Date(evaluation.evaluatedAt).toLocaleString()}
+          </Text>
+        </Box>
+      </SimpleGrid>
+
+      <Box>
+        <Text fontWeight="bold" mb={2}>Keyword Analysis</Text>
+        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+          {evaluation.details.map((detail, index) => (
+            <Box 
+              key={index}
+              p={3}
+              borderRadius="md"
+              border="1px solid"
+              borderColor="gray.200"
+            >
+              <Text fontWeight="semibold">{detail.keyword}</Text>
+              <Text fontSize="sm">Occurrences: {detail.occurrences}</Text>
+              <Text fontSize="sm">Weight: {detail.weight}</Text>
+              <Text fontSize="sm" color={detail.score > 0 ? "green.500" : "gray.500"}>
+                Score: {detail.score}
+              </Text>
+            </Box>
+          ))}
+        </SimpleGrid>
+      </Box>
+    </Box>
+  );
+};
+
+const SpeechMetricsDisplay = ({ metrics }) => {
+  const bgColor = useColorModeValue("white", "gray.700");
+  
+  // Comprehensive null checks
+  if (!metrics || !metrics.overallMetrics || !metrics.thresholds) {
+    return (
+      <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
+        <Text color="gray.500">Speech analysis data not available</Text>
+      </Box>
+    );
+  }
+
+  const {
+    averageRate = 0,
+    totalWords = 0,
+    totalDuration = 0
+  } = metrics.overallMetrics;
+
+  const {
+    slow = 120,
+    optimal = 150,
+    fast = 180
+  } = metrics.thresholds;
+
+  const getRateStatus = (rate) => {
+    if (!rate) return { color: "gray", text: "No Data" };
+    if (rate < slow) return { color: "red", text: "Too Slow" };
+    if (rate > fast) return { color: "yellow", text: "Too Fast" };
+    return { color: "green", text: "Optimal" };
+  };
+
+  const status = getRateStatus(averageRate);
+
+  return (
+    <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm" mb={6}>
+      <HStack justify="space-between" mb={4}>
+        <Heading size="md">Speech Analysis</Heading>
+        <Badge variant="subtle" colorScheme={status.color}>
+          {status.text}
+        </Badge>
+      </HStack>
+      
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+        <Box 
+          textAlign="center" 
+          p={4} 
+          borderRadius="md" 
+          bg={`${status.color}.100`}
+          border="1px solid"
+          borderColor={`${status.color}.300`}
+        >
+          <Text fontWeight="bold" color={`${status.color}.700`}>Speaking Rate</Text>
+          <Text fontSize="2xl">{averageRate ? averageRate.toFixed(0) : '--'}</Text>
+          <Text fontSize="sm" color="gray.600">words/min</Text>
+        </Box>
+        
+        <Box 
+          textAlign="center" 
+          p={4}
+          borderRadius="md"
+          border="1px solid"
+          borderColor="gray.200"
+        >
+          <Text fontWeight="bold">Total Words</Text>
+          <Text fontSize="2xl">{totalWords || '--'}</Text>
+          <Text fontSize="sm" color="gray.600">words</Text>
+        </Box>
+
+        <Box 
+          textAlign="center" 
+          p={4}
+          borderRadius="md"
+          border="1px solid"
+          borderColor="gray.200"
+        >
+          <Text fontWeight="bold">Duration</Text>
+          <Text fontSize="2xl">
+            {totalDuration ? (totalDuration / 60).toFixed(1) : '--'}
+          </Text>
+          <Text fontSize="sm" color="gray.600">minutes</Text>
+        </Box>
+      </SimpleGrid>
+    </Box>
+  );
+};
+
 // Separate Comment component to fix the Hook error
 const Comment = ({ comment }) => {
   const bgColor = useColorModeValue("gray.100", "gray.700");
@@ -179,10 +324,15 @@ const SubmissionDetail = () => {
       );
       setSubmission(response.data);
     } catch (error) {
+      const errorMessage = error.response?.status === 401 
+        ? "Session expired. Please login again"
+        : "Error fetching submission details";
+        
       toast({
-        title: "Error fetching submission",
+        title: errorMessage,
         status: "error",
         duration: 3000,
+        isClosable: true,
       });
     } finally {
       setLoading(false);
@@ -243,6 +393,26 @@ const SubmissionDetail = () => {
                 <Text whiteSpace="pre-wrap">{submission.transcript}</Text>
               </Box>
             )}
+
+            {submission.transcriptionStatus === 'completed' ? (
+              <SpeechMetricsDisplay metrics={submission.speechMetrics} />
+            ) : submission.transcriptionStatus === 'processing' ? (
+              <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
+                <HStack spacing={4}>
+                  <Spinner size="sm" />
+                  <Text>Analyzing speech metrics...</Text>
+                </HStack>
+              </Box>
+            ) : submission.transcriptionStatus === 'failed' ? (
+              <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
+                <Text color="red.500">Failed to analyze speech metrics</Text>
+              </Box>
+            ) : null}
+
+            {/* Automatic Evaluation Display */}
+            {submission.automaticEvaluation && (
+              <AutomaticEvaluationDisplay evaluation={submission.automaticEvaluation} />
+            )}
           </VStack>
         </GridItem>
 
@@ -269,6 +439,8 @@ const SubmissionDetail = () => {
                     colorScheme={
                       submission.transcriptionStatus === "completed"
                         ? "green"
+                        : submission.transcriptionStatus === "failed"
+                        ? "red"
                         : "yellow"
                     }
                   >
@@ -283,6 +455,26 @@ const SubmissionDetail = () => {
                   <Text fontWeight="bold">Submitted on</Text>
                   <Text>
                     {new Date(submission.submittedDate).toLocaleString()}
+                  </Text>
+                </HStack>
+                
+                <HStack justify="space-between">
+                  <Text fontWeight="bold">Auto Evaluation</Text>
+                  {submission.automaticEvaluation ? (
+                    <Badge 
+                      colorScheme={submission.automaticEvaluation.score >= 70 ? "green" : "orange"}
+                    >
+                      {submission.automaticEvaluation.score}%
+                    </Badge>
+                  ) : (
+                    <Text>Pending</Text>
+                  )}
+                </HStack>
+                
+                <HStack justify="space-between">
+                  <Text fontWeight="bold">Manual Evaluations</Text>
+                  <Text>
+                    {submission.evaluations.length} {submission.evaluations.length === 1 ? 'review' : 'reviews'}
                   </Text>
                 </HStack>
               </VStack>

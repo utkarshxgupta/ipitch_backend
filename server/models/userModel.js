@@ -23,6 +23,10 @@ const UserSchema = new mongoose.Schema({
     enum: ['admin', 'manager', 'trainer', 'trainee'],
     default: ['trainee']
   },
+  isActive: {
+    type: Boolean,
+    default: true
+  }
 });
 
 module.exports = mongoose.model('User', UserSchema);

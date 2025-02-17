@@ -4,8 +4,14 @@ const ffmpeg = require("fluent-ffmpeg");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const socketService = require('./socketService'); // import socket service
 const Submission = require('../models/Submission'); // Ensure you import the model
+const { 
+  calculateSpeakingRate, 
+  calculateAverageSpeakingRate, 
+  SPEECH_RATE_CONSTANTS 
+} = require('./speechMetrics');
+const evaluationService = require('./evaluationService');
+const Challenge = require('../models/Challenge');
 
 class TranscriptionService {
   constructor() {
@@ -30,8 +36,15 @@ class TranscriptionService {
       await new Promise((resolve, reject) => {
         ffmpeg(tempVideoPath)
           .toFormat('wav')
-          .audioFrequency(16000)  // Required for Google Speech-to-Text
-          .audioChannels(1)       // Mono audio
+          .audioFrequency(16000)     // Optimal for speech recognition
+          .audioChannels(1)          // Mono for single speaker
+          .audioBitrate(128)         // Good quality for speech
+          .audioCodec('pcm_s16le')   // LINEAR16 codec
+          .audioFilters([
+            'highpass=f=80',         // Remove low frequency noise
+            'lowpass=f=8000',        // Focus on speech frequencies
+            'dynaudnorm=f=150'       // Normalize audio levels
+          ])
           .on('error', (error) => {
             console.error('FFmpeg error:', error);
             reject(error);
@@ -74,110 +87,202 @@ class TranscriptionService {
     }
   }
 
-  async transcribeAudio(gcsUri) {
+  async transcribeVideo(videoBuffer, originalFileName, submissionId) {
     try {
-        const request = {
-            audio: {
-              uri: gcsUri
-            },
-            config: {
-              encoding: 'LINEAR16',
-              sampleRateHertz: 16000,
-              languageCode: 'en-US',
-              enableAutomaticPunctuation: true,
-            },
-          };
-
-      // Perform the transcription
-      const [response] = await this.speechClient.recognize(request);
-
-      // Combine all transcriptions
-      const transcription = response.results
-        .map((result) => result.alternatives[0].transcript)
-        .join("\n");
-
-      return transcription;
-    } catch (error) {
-      console.error("Error in transcribeAudio:", error);
-      throw error;
-    } 
-  }
-
-  async processVideo(videoBuffer, originalFileName) {
-    try {
-      // Convert video to audio and upload to GCS
       const { fileName, gcsUri } = await this.convertVideoToAudio(videoBuffer, originalFileName);
-      
-      // Transcribe the audio
-      const transcript = await this.transcribeAudio(gcsUri);
 
-      // Optionally delete the audio file after transcription
-      // await this.bucket.file(fileName).delete().catch(console.error);
+      await Submission.findByIdAndUpdate(submissionId, {
+        transcriptionStatus: 'processing'
+      });
 
-      return transcript;
-    } catch (error) {
-      console.error("Error in processVideo:", error);
-      throw error;
-    }
-  }
-
-  async processVideoStreaming(videoBuffer, submissionId, originalFileName) {
-    try {
-      const { fileName, gcsUri } = await this.convertVideoToAudio(
-        videoBuffer,
-        originalFileName
-      );
-
-      // Build request for streaming
       const request = {
+        audio: { uri: gcsUri },
         config: {
           encoding: 'LINEAR16',
           sampleRateHertz: 16000,
           languageCode: 'en-IN',
+          enableWordTimeOffsets: true,
           enableAutomaticPunctuation: true,
-        },
-        audio: { uri: gcsUri },
+          useEnhanced: true,
+          enableWordConfidence: true,
+          enableSpeakerDiarization: false,
+          profanityFilter: false,
+          metadata: {
+            interactionType: 'PRESENTATION',
+            industryNaicsCodeOfAudio: 541613,
+            originalMediaType: 'VIDEO'
+          },
+          hints: [
+            'sales', 'pitch', 'product', 'service',
+            'value proposition', 'benefits', 'features'
+          ]
+        }
       };
 
-      // Start streaming recognition
-      const recognizeStream = this.speechClient
-        .streamingRecognize(request)
-        .on('error', (error) => {
-          console.error('Streaming error:', error);
-          socketService.emitTranscriptionError(submissionId, error);
-        })
-        .on('data', (data) => {
-          if (data.results && data.results[0] && data.results[0].alternatives[0]) {
-            const partialTranscript = data.results[0].alternatives[0].transcript;
-            socketService.emitTranscriptionProgress(submissionId, partialTranscript);
-          }
-        })
-        .on('end', async () => {
-          // Perform a final recognition (or gather transcripts from data events)
-          const finalTranscript = await this.transcribeAudio(gcsUri);
+      const [operation] = await this.speechClient.longRunningRecognize(request);
+      const [response] = await operation.promise();
 
-          // Update the submission document
-        await Submission.findByIdAndUpdate(submissionId, {
-            transcript: finalTranscript,
-            transcriptionStatus: 'completed'
-          });
-          
-          socketService.emitTranscriptionComplete(submissionId, finalTranscript);
-          
-          // Optionally remove audio from GCS
-          // await this.bucket.file(fileName).delete().catch(console.error);
-        });
+      // Handle empty or invalid response
+      if (!response?.results) {
+        console.warn(`No transcription results for submission ${submissionId}`);
+        await this.handleEmptyTranscription(submissionId);
+        return this.createEmptyResponse();
+      }
 
-      // End streaming
-      setTimeout(() => {
-        recognizeStream.end();
-      }, 240000); // 4 minutes max, example
+      // Process valid results
+      const results = response.results.filter(result => 
+        result?.alternatives?.[0]?.transcript && 
+        result.alternatives[0].words?.length > 0
+      );
+
+      if (results.length === 0) {
+        console.warn(`No valid transcription segments for submission ${submissionId}`);
+        await this.handleEmptyTranscription(submissionId);
+        return this.createEmptyResponse();
+      }
+
+      // Process transcription with enhanced metrics
+      const transcription = this.processTranscriptionResults(results);
+      
+      // Calculate speech metrics
+      const speechMetrics = {
+        overallMetrics: {
+          averageRate: calculateAverageSpeakingRate(transcription.words).averageRate,
+          totalWords: transcription.words.length,
+          totalDuration: transcription.words[transcription.words.length - 1].endTime - transcription.words[0].startTime
+        },
+        thresholds: {
+          slow: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
+          optimal: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
+          fast: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
+        },
+        wordLevelMetrics: transcription.words.map(word => {
+          const metrics = calculateSpeakingRate(word);
+          return {
+            word: word.word,
+            startTime: word.startTime,
+            endTime: word.endTime,
+            confidence: word.confidence,
+            rate: metrics ? metrics.rate : 0
+          };
+        })
+      };
+
+      // Get the challenge details for evaluation
+      const submission = await Submission.findById(submissionId).populate('challenge');
+      const evaluationCriteria = submission.challenge.evaluationCriteria;
+      
+      // Perform automatic evaluation
+      const evaluationResult = evaluationService.evaluateTranscript(
+        transcription.text,
+        evaluationCriteria
+      );
+
+      // Update submission with transcription and evaluation results
+      await Submission.findByIdAndUpdate(submissionId, {
+        transcript: transcription.text,
+        transcriptionStatus: 'completed',
+        speechMetrics: {
+          overallMetrics: {
+            averageRate: speechMetrics.overallMetrics.averageRate,
+            totalWords: speechMetrics.overallMetrics.totalWords,
+            totalDuration: speechMetrics.overallMetrics.totalDuration
+          },
+          thresholds: {
+            slow: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
+            optimal: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
+            fast: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
+          },
+          wordLevelMetrics: speechMetrics.wordLevelMetrics
+        },
+        automaticEvaluation: {
+          ...evaluationResult,
+          evaluatedAt: new Date()
+        }
+      });
+
+      await this.bucket.file(fileName).delete();
+
+      return {
+        text: transcription.text,
+        metrics: speechMetrics,
+        evaluation: evaluationResult
+      };
 
     } catch (error) {
-      console.error("Error in processVideoStreaming:", error);
-      socketService.emitTranscriptionError(submissionId, error);
+      console.error("Error in transcribeVideo:", error);
+      await Submission.findByIdAndUpdate(submissionId, {
+        transcriptionStatus: 'error',
+        error: error.message
+      });
       throw error;
     }
+  }
+
+  // Helper methods
+  async handleEmptyTranscription(submissionId) {
+    await Submission.findByIdAndUpdate(submissionId, {
+      transcriptionStatus: 'completed',
+      transcript: '',
+      speechMetrics: {
+        overallMetrics: {
+          averageRate: 0,
+          totalWords: 0,
+          totalDuration: 0
+        },
+        thresholds: {
+          slow: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
+          optimal: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
+          fast: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
+        },
+        wordLevelMetrics: []
+      }
+    });
+  }
+
+  createEmptyResponse() {
+    return {
+      text: '',
+      metrics: {
+        overallMetrics: {
+          averageRate: 0,
+          totalWords: 0,
+          totalDuration: 0
+        },
+        thresholds: {
+          slow: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
+          optimal: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
+          fast: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
+        },
+        wordLevelMetrics: []
+      }
+    };
+  }
+
+  processTranscriptionResults(results) {
+    return results.reduce((acc, result) => {
+      const alternative = result.alternatives[0];
+      const words = alternative.words.map(word => ({
+        word: word.word,
+        startTime: Number(word.startTime.seconds) + Number(word.startTime.nanos) / 1e9,
+        endTime: Number(word.endTime.seconds) + Number(word.endTime.nanos) / 1e9,
+        confidence: Number(word.confidence)
+      }));
+
+      if (!acc.text) {
+        return {
+          text: alternative.transcript,
+          confidence: alternative.confidence,
+          words: words
+        };
+      }
+
+      return {
+        text: `${acc.text}\n${alternative.transcript}`,
+        confidence: (acc.confidence + alternative.confidence) / 2,
+        words: [...acc.words, ...words]
+      };
+    }, { text: '', confidence: 0, words: [] });
   }
 }
 

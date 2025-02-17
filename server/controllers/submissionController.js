@@ -41,10 +41,10 @@ exports.createSubmission = async (req, res) => {
 
     const submission = await newSubmission.save();
 
-    TranscriptionService.processVideoStreaming(
+    TranscriptionService.transcribeVideo(
       req.file.buffer,
-      submission._id,
-      req.file.originalname
+      req.file.originalname,
+      submission._id
     );
 
     // const indexResult = await azureVideoIndexer.uploadVideo(fileUrl, fileName);
@@ -135,14 +135,14 @@ exports.getSubmissionById = async (req, res) => {
     ]);
     // if user role is trainee, then check if the submission belongs to the user
     if (req.user.role.includes("trainee")) {
-      if (submission.trainee.toString() !== req.user.id) {
+      if (submission.trainee._id.toString() !== req.user.id) {
         return res.status(401).json({ msg: "User not authorized" });
       }
     }
     if (!submission) {
       return res.status(404).json({ msg: "Submission not found" });
     }
-    res.json(submission);
+    return res.json(submission);
   } catch (error) {
     console.error(error);
     res.status(500).send("Server Error");
@@ -151,34 +151,79 @@ exports.getSubmissionById = async (req, res) => {
 
 exports.getAllSubmissions = async (req, res) => {
   try {
-    let { page = 1, limit = 10, assignmentId, traineeId } = req.query;
-    page = parseInt(page, 10);
+    let { lastId, limit = 10, traineeId, assignmentId } = req.query;
     limit = parseInt(limit, 10);
-    const skip = (page - 1) * limit;
 
+    // Base query
     const query = {};
-    if (assignmentId) {
-      query.assignment = assignmentId;
-    }
     if (traineeId) {
       query.trainee = traineeId;
     }
 
-    const [submissions, total] = await Promise.all([
-      Submission.find(query)
+    if (assignmentId) {
+      query.assignment = assignmentId;
+    }
+
+    // Add _id condition for infinite scroll
+    if (lastId) {
+      query._id = { $lt: lastId };
+    }
+
+    // If loading more for specific assignment, only get that one
+    if (assignmentId) {
+      const submissions = await Submission.find(query)
+        .sort({ _id: -1 })
+        .limit(limit)
         .populate("trainee", ["name"])
         .populate("challenge", ["name"])
-        .populate("assignment", ["name"])
-        .skip(skip)
-        .limit(limit),
-      Submission.countDocuments(query),
-    ]);
+        .populate("assignment", ["name"]);
+
+      const group = {
+        assignmentId,
+        assignmentName: submissions[0]?.assignment?.name || '',
+        submissions,
+        hasMore: submissions.length === limit,
+        lastId: submissions[submissions.length - 1]?._id
+      };
+
+      return res.json({
+        groups: [group],
+        total: 1
+      });
+    }
+
+    // First, get all unique assignment IDs from submissions
+    const uniqueAssignments = await Submission.distinct('assignment', query);
+
+    // Get submissions for each assignment
+    const groupedSubmissions = await Promise.all(
+      uniqueAssignments.map(async (assignmentId) => {
+        const assignmentQuery = { ...query, assignment: assignmentId };
+        const submissions = await Submission.find(assignmentQuery)
+          .sort({ _id: -1 })
+          .limit(limit)
+          .populate("trainee", ["name"])
+          .populate("challenge", ["name"])
+          .populate("assignment", ["name"]);
+
+        return {
+          assignmentId,
+          assignmentName: submissions[0]?.assignment?.name || '',
+          submissions,
+          hasMore: submissions.length === limit,
+          lastId: submissions[submissions.length - 1]?._id
+        };
+      })
+    );
+
+    // Filter out empty assignment groups
+    const filteredGroups = groupedSubmissions.filter(
+      group => group.submissions.length > 0
+    );
 
     return res.json({
-      page,
-      limit,
-      total,
-      submissions,
+      groups: filteredGroups,
+      total: filteredGroups.length
     });
   } catch (error) {
     console.error(error);

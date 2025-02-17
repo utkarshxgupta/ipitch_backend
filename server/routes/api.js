@@ -15,6 +15,7 @@ const {
   getUsers,
   updateUserRoles,
   getUserById,
+  modifyUserAccess,
 } = require("../controllers/adminController");
 const {
   getChallenges,
@@ -99,6 +100,7 @@ router.put(
   updateUserRoles
 );
 router.get("/admin/users/:id", auth, roleCheck(["admin"]), getUserById);
+router.put("/admin/users/:id", auth, roleCheck(["admin"]), modifyUserAccess);
 
 // Challenge routes
 router.get("/challenges", getChallenges);
