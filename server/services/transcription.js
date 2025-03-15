@@ -1,288 +1,425 @@
-const speech = require("@google-cloud/speech").v1;
-const { Storage } = require("@google-cloud/storage");
-const ffmpeg = require("fluent-ffmpeg");
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
-const Submission = require('../models/Submission'); // Ensure you import the model
-const { 
-  calculateSpeakingRate, 
-  calculateAverageSpeakingRate, 
-  SPEECH_RATE_CONSTANTS 
-} = require('./speechMetrics');
+const speech = require('@google-cloud/speech').v2;
+const fs = require('fs');
+const { promisify } = require('util');
+const ffmpeg = require('fluent-ffmpeg');
+const path = require('path');
+const logger = require('../utils/logger');
+const os = require('os');
+const Submission = require('../models/Submission');
 const evaluationService = require('./evaluationService');
+const embeddingService = require('./embeddingService');
 const Challenge = require('../models/Challenge');
 
+/**
+ * Service for transcribing audio from video files using Google Speech-to-Text v2
+ */
 class TranscriptionService {
   constructor() {
-    this.speechClient = new speech.SpeechClient();
-    this.storage = new Storage();
-    this.bucket = this.storage.bucket(process.env.GOOGLE_CLOUD_BUCKET_NAME);
-  }
-
-  async convertVideoToAudio(videoBuffer, originalFileName) {
-    const tempDir = os.tmpdir();
-    const tempVideoPath = path.join(
-      tempDir,
-      `${Date.now()}-${originalFileName}`
-    );
-    const tempAudioPath = path.join(tempDir, `${Date.now()}-audio.wav`);
-
     try {
-      // Write video buffer to temporary file
-      fs.writeFileSync(tempVideoPath, videoBuffer);
-
-      // Convert video to audio
-      await new Promise((resolve, reject) => {
-        ffmpeg(tempVideoPath)
-          .toFormat('wav')
-          .audioFrequency(16000)     // Optimal for speech recognition
-          .audioChannels(1)          // Mono for single speaker
-          .audioBitrate(128)         // Good quality for speech
-          .audioCodec('pcm_s16le')   // LINEAR16 codec
-          .audioFilters([
-            'highpass=f=80',         // Remove low frequency noise
-            'lowpass=f=8000',        // Focus on speech frequencies
-            'dynaudnorm=f=150'       // Normalize audio levels
-          ])
-          .on('error', (error) => {
-            console.error('FFmpeg error:', error);
-            reject(error);
-          })
-          .on('end', () => {
-            resolve();
-          })
-          .save(tempAudioPath);
-      });
-
-      // Read the audio file
-      const audioBuffer = fs.readFileSync(tempAudioPath);
-
-      // Generate unique filename for audio
-      const audioFileName = `audio-${Date.now()}.wav`;
-
-      // Upload audio to Google Cloud Storage
-      const audioFile = this.bucket.file(audioFileName);
-      await audioFile.save(audioBuffer, {
-        metadata: {
-          contentType: 'audio/wav'
-        }
-      });
-
-      // Clean up temporary files
-      fs.unlinkSync(tempVideoPath);
-      fs.unlinkSync(tempAudioPath);
-
-      return {
-        fileName: audioFileName,
-        gcsUri: `gs://${process.env.GOOGLE_CLOUD_BUCKET_NAME}/${audioFileName}`
-      };
+      // Initialize speech client with application credentials
+      this.client = new speech.SpeechClient();
       
-    } catch (error) {
-        console.error('Error in convertVideoToAudio:', error);
-        // Clean up temporary files if they exist
-        if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath);
-        if (fs.existsSync(tempAudioPath)) fs.unlinkSync(tempAudioPath);
-        throw error;
-    }
-  }
-
-  async transcribeVideo(videoBuffer, originalFileName, submissionId) {
-    try {
-      const { fileName, gcsUri } = await this.convertVideoToAudio(videoBuffer, originalFileName);
-
-      await Submission.findByIdAndUpdate(submissionId, {
-        transcriptionStatus: 'processing'
-      });
-
-      const request = {
-        audio: { uri: gcsUri },
-        config: {
-          encoding: 'LINEAR16',
-          sampleRateHertz: 16000,
-          languageCode: 'en-IN',
+      // Set up project details for v2 API
+      this.projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
+      this.location = 'global'; // Using global for better model availability
+      
+      // Update configuration for longer audio and Indian English
+      this.recognitionConfig = {
+        autoDecodingConfig: {},
+        languageCodes: ['en-IN'], // Changed to Indian English
+        model: 'long', // Using 'long' model instead of 'latest_short'
+        features: {
           enableWordTimeOffsets: true,
-          enableAutomaticPunctuation: true,
-          useEnhanced: true,
           enableWordConfidence: true,
-          enableSpeakerDiarization: false,
-          profanityFilter: false,
-          metadata: {
-            interactionType: 'PRESENTATION',
-            industryNaicsCodeOfAudio: 541613,
-            originalMediaType: 'VIDEO'
-          },
-          hints: [
-            'sales', 'pitch', 'product', 'service',
-            'value proposition', 'benefits', 'features'
-          ]
+          enableSpokenPunctuation: true,
+          enableSpokenEmojis: false,
+          enableAutomaticPunctuation: true, // Added for better readability
         }
       };
-
-      const [operation] = await this.speechClient.longRunningRecognize(request);
-      const [response] = await operation.promise();
-
-      // Handle empty or invalid response
-      if (!response?.results) {
-        console.warn(`No transcription results for submission ${submissionId}`);
-        await this.handleEmptyTranscription(submissionId);
-        return this.createEmptyResponse();
-      }
-
-      // Process valid results
-      const results = response.results.filter(result => 
-        result?.alternatives?.[0]?.transcript && 
-        result.alternatives[0].words?.length > 0
-      );
-
-      if (results.length === 0) {
-        console.warn(`No valid transcription segments for submission ${submissionId}`);
-        await this.handleEmptyTranscription(submissionId);
-        return this.createEmptyResponse();
-      }
-
-      // Process transcription with enhanced metrics
-      const transcription = this.processTranscriptionResults(results);
-      
-      // Calculate speech metrics
-      const speechMetrics = {
-        overallMetrics: {
-          averageRate: calculateAverageSpeakingRate(transcription.words).averageRate,
-          totalWords: transcription.words.length,
-          totalDuration: transcription.words[transcription.words.length - 1].endTime - transcription.words[0].startTime
-        },
-        thresholds: {
-          slow: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
-          optimal: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
-          fast: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
-        },
-        wordLevelMetrics: transcription.words.map(word => {
-          const metrics = calculateSpeakingRate(word);
-          return {
-            word: word.word,
-            startTime: word.startTime,
-            endTime: word.endTime,
-            confidence: word.confidence,
-            rate: metrics ? metrics.rate : 0
-          };
-        })
-      };
-
-      // Get the challenge details for evaluation
-      const submission = await Submission.findById(submissionId).populate('challenge');
-      const evaluationCriteria = submission.challenge.evaluationCriteria;
-      
-      // Perform automatic evaluation
-      const evaluationResult = evaluationService.evaluateTranscript(
-        transcription.text,
-        evaluationCriteria
-      );
-
-      // Update submission with transcription and evaluation results
-      await Submission.findByIdAndUpdate(submissionId, {
-        transcript: transcription.text,
-        transcriptionStatus: 'completed',
-        speechMetrics: {
-          overallMetrics: {
-            averageRate: speechMetrics.overallMetrics.averageRate,
-            totalWords: speechMetrics.overallMetrics.totalWords,
-            totalDuration: speechMetrics.overallMetrics.totalDuration
-          },
-          thresholds: {
-            slow: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
-            optimal: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
-            fast: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
-          },
-          wordLevelMetrics: speechMetrics.wordLevelMetrics
-        },
-        automaticEvaluation: {
-          ...evaluationResult,
-          evaluatedAt: new Date()
-        }
-      });
-
-      await this.bucket.file(fileName).delete();
-
-      return {
-        text: transcription.text,
-        metrics: speechMetrics,
-        evaluation: evaluationResult
-      };
-
     } catch (error) {
-      console.error("Error in transcribeVideo:", error);
-      await Submission.findByIdAndUpdate(submissionId, {
-        transcriptionStatus: 'error',
-        error: error.message
-      });
+      logger.error('Failed to initialize Speech-to-Text client:', error);
       throw error;
     }
   }
 
-  // Helper methods
-  async handleEmptyTranscription(submissionId) {
-    await Submission.findByIdAndUpdate(submissionId, {
-      transcriptionStatus: 'completed',
-      transcript: '',
-      speechMetrics: {
-        overallMetrics: {
-          averageRate: 0,
-          totalWords: 0,
-          totalDuration: 0
-        },
-        thresholds: {
-          slow: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
-          optimal: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
-          fast: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
-        },
-        wordLevelMetrics: []
-      }
-    });
+  /**
+   * Extract audio from a video file
+   * @param {string} videoPath Path to the video file
+   * @returns {Promise<string>} Path to extracted audio file
+   */
+  async extractAudioFromVideo(videoPath) {
+    try {
+      const audioPath = videoPath.replace(/\.[^/.]+$/, '.wav');
+      
+      return new Promise((resolve, reject) => {
+        ffmpeg(videoPath)
+          .output(audioPath)
+          .audioCodec('pcm_s16le')
+          .audioChannels(1)
+          .audioFrequency(16000)
+          .on('end', () => resolve(audioPath))
+          .on('error', reject)
+          .run();
+      });
+    } catch (error) {
+      logger.error(`Error extracting audio from video: ${error.message}`);
+      throw new Error(`Failed to extract audio: ${error.message}`);
+    }
   }
 
-  createEmptyResponse() {
-    return {
-      text: '',
-      metrics: {
-        overallMetrics: {
-          averageRate: 0,
-          totalWords: 0,
-          totalDuration: 0
-        },
-        thresholds: {
-          slow: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
-          optimal: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
-          fast: SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
-        },
-        wordLevelMetrics: []
+  /**
+   * Transcribe audio file using Google Speech-to-Text v2 asynchronously
+   * @param {string} audioPath Path to audio file
+   * @returns {Promise<Object>} Transcription results formatted for evaluation service
+   */
+  async transcribeAudio(audioPath) {
+    try {
+      // Create a unique filename for GCS storage
+      const fileName = `audio-transcription-${Date.now()}-${path.basename(audioPath)}`;
+      
+      // Upload the audio file to GCS using StorageService
+      const storageService = require('./storage');
+      const fileBuffer = await promisify(fs.readFile)(audioPath);
+      const uploadResult = await storageService.uploadAudioFile({
+        buffer: fileBuffer,
+        originalname: path.basename(audioPath),
+        mimetype: 'audio/wav'
+      }, 'transcription-temp');
+      
+      // Get GCS URI
+      const audioGcsUri = `gs://${process.env.GOOGLE_CLOUD_BUCKET_NAME}/${uploadResult.fileName}`;
+      logger.info(`Uploaded audio to GCS: ${audioGcsUri}`);
+      
+      // Create recognition config with proper parent path for v2 API
+      const parent = `projects/${this.projectId}/locations/${this.location}`;
+      
+      // Create a recognizer ID that follows Google's requirements
+      // Must match regex: [a-z]([a-z0-9-]{0,61}[a-z0-9])?
+      const timestamp = Date.now().toString();
+      const recognizerId = `recognizer-${timestamp.substring(timestamp.length - 10)}`;
+      const recognizerPath = `${parent}/recognizers/${recognizerId}`;
+      
+      // Define formattedResults in the outer scope so it's available for return
+      let formattedResults = { transcript: '', words: [], confidence: 0 };
+      
+      try {
+        // Create a recognizer (one-time setup)
+        const createRecognizerRequest = {
+          parent,
+          recognizerId,
+          recognizer: {
+            defaultRecognitionConfig: this.recognitionConfig,
+            languageCodes: ['en-IN'],
+            model: 'long'
+          }
+        };
+        
+        logger.info(`Creating temporary recognizer: ${recognizerId}`);
+        await this.client.createRecognizer(createRecognizerRequest);
+        
+        // Use batchRecognize method with GCS URI
+        const batchRecognizeRequest = {
+          recognizer: recognizerPath,
+          config: this.recognitionConfig,
+          files: [{
+            uri: audioGcsUri // Use GCS URI instead of base64 content
+          }],
+          recognitionOutputConfig: {
+            // Inline results instead of writing to GCS
+            inlineResponseConfig: {}
+          }
+        };
+
+        logger.info(`Starting batch asynchronous file transcription using GCS URI`);
+        const [operation] = await this.client.batchRecognize(batchRecognizeRequest);
+
+        // For batch operations, we need to check status and wait for completion
+        logger.info('Waiting for transcription to complete...');
+
+        // Log the operation for debugging
+        logger.info(`Operation details: ${JSON.stringify(operation.name || 'No name available')}`);
+
+        // Use the operation's promise-based interface instead of polling
+        try {
+          logger.info('Waiting for operation to complete...');
+          const [response] = await operation.promise();
+          logger.info('Transcription completed');
+          // logger.info(`Operation response: ${JSON.stringify(response)}`);
+          formattedResults = this.formatTranscriptionResults(response);
+          logger.info(`Formatted results: ${JSON.stringify(formattedResults)}`);
+        } catch (operationError) {
+          logger.error(`Operation failed: ${operationError.message}`);
+          throw operationError;
+        }
+
+        // Clean up the temporary recognizer
+        await this.client.deleteRecognizer({ name: recognizerPath });
+        
+        // Delete the temporary audio file from GCS
+        try {
+          await storageService.deleteFile(uploadResult.fileName);
+          logger.info(`Deleted temporary audio file from GCS: ${uploadResult.fileName}`);
+        } catch (cleanupError) {
+          logger.warn(`Failed to delete temporary audio file from GCS: ${cleanupError.message}`);
+        }
+        
+        return formattedResults;
+      } catch (error) {
+        // If we created a recognizer but encountered an error, try to clean it up
+        try {
+          await this.client.deleteRecognizer({ name: recognizerPath });
+        } catch (cleanupError) {
+          logger.warn(`Failed to clean up temporary recognizer: ${cleanupError.message}`);
+        }
+        
+        // Also try to delete the temporary GCS file
+        try {
+          await storageService.deleteFile(uploadResult.fileName);
+        } catch (cleanupError) {
+          logger.warn(`Failed to delete temporary audio file from GCS: ${cleanupError.message}`);
+        }
+        
+        throw error;
       }
+    } catch (error) {
+      logger.error(`Transcription failed: ${error.message}`);
+      throw new Error(`Transcription failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Format transcription results for evaluation service
+   * @param {Object} response Raw response from Speech-to-Text v2 API
+   * @returns {Object} Formatted results
+   */
+  formatTranscriptionResults(response) {
+    // Check if we have a valid response
+    if (!response || !response.results) {
+      return { transcript: '', words: [], confidence: 0 };
+    }
+    
+    // Extract results from the new API response structure
+    let results = [];
+    
+    // Check if results come from inlineResult
+    if (response.inlineResult && response.inlineResult.transcript && response.inlineResult.transcript.results) {
+      results = response.inlineResult.transcript.results;
+    }
+    // Or check for the first file result
+    else {
+      // Look for the first file key in the results object
+      const firstFileKey = Object.keys(response.results)[0];
+      if (firstFileKey && response.results[firstFileKey].transcript) {
+        results = response.results[firstFileKey].transcript.results || [];
+      }
+    }
+    
+    if (!results || !results.length) {
+      return { transcript: '', words: [], confidence: 0 };
+    }
+    
+    // Extract full transcript
+    const transcript = results
+      .map(result => result.alternatives && result.alternatives[0] ? result.alternatives[0].transcript : '')
+      .join(' ')
+      .trim();
+    
+    // Extract word-level details
+    const words = [];
+    results.forEach(result => {
+      if (result.alternatives && result.alternatives[0] && result.alternatives[0].words) {
+        result.alternatives[0].words.forEach(word => {
+          words.push({
+            word: word.word,
+            startTime: this.formatTimeOffset(word.startOffset),
+            endTime: this.formatTimeOffset(word.endOffset),
+            confidence: word.confidence || 0
+          });
+        });
+      }
+    });
+    
+    // Calculate overall confidence score (average of all word confidences)
+    const confidence = words.length > 0 
+      ? words.reduce((sum, word) => sum + word.confidence, 0) / words.length
+      : 0;
+    
+    return {
+      transcript,
+      words,
+      confidence,
+      languageCode: results[0]?.languageCode || this.recognitionConfig.languageCodes[0]
     };
   }
 
-  processTranscriptionResults(results) {
-    return results.reduce((acc, result) => {
-      const alternative = result.alternatives[0];
-      const words = alternative.words.map(word => ({
-        word: word.word,
-        startTime: Number(word.startTime.seconds) + Number(word.startTime.nanos) / 1e9,
-        endTime: Number(word.endTime.seconds) + Number(word.endTime.nanos) / 1e9,
-        confidence: Number(word.confidence)
-      }));
+  /**
+   * Format time offset from Speech-to-Text API v2 to seconds
+   * @param {Object} offset Time offset object with seconds and nanos
+   * @returns {number} Time in seconds
+   */
+  formatTimeOffset(offset) {
+    if (!offset) return 0;
+    
+    // Convert seconds and nanos to a floating point number
+    const seconds = parseInt(offset.seconds || 0);
+    const nanos = parseInt(offset.nanos || 0);
+    
+    return seconds + (nanos / 1e9);
+  }
 
-      if (!acc.text) {
-        return {
-          text: alternative.transcript,
-          confidence: alternative.confidence,
-          words: words
-        };
+  /**
+   * Create a temporary file from a buffer
+   * @param {Buffer} buffer File buffer
+   * @param {string} filename Original filename
+   * @returns {Promise<string>} Path to temporary file
+   */
+  async createTempFileFromBuffer(buffer, filename) {
+    const tempDir = os.tmpdir();
+    const tempFilePath = path.join(tempDir, `temp_${Date.now()}_${filename}`);
+    
+    await promisify(fs.writeFile)(tempFilePath, buffer);
+    return tempFilePath;
+  }
+
+  /**
+   * Clean up temporary files
+   * @param {Array<string>} filePaths Array of file paths to delete
+   */
+  async cleanupTempFiles(filePaths) {
+    for (const filePath of filePaths) {
+      try {
+        await promisify(fs.unlink)(filePath);
+      } catch (error) {
+        logger.warn(`Failed to delete temporary file ${filePath}: ${error.message}`);
       }
+    }
+  }
 
-      return {
-        text: `${acc.text}\n${alternative.transcript}`,
-        confidence: (acc.confidence + alternative.confidence) / 2,
-        words: [...acc.words, ...words]
+  /**
+   * Main transcription method for processing video files from buffer
+   * @param {Buffer} videoBuffer Video file buffer
+   * @param {string} filename Original filename
+   * @param {string} submissionId Submission ID to update with results
+   */
+  async transcribeVideo(videoBuffer, filename, submissionId) {
+    const tempFiles = [];
+    
+    try {
+      // Update submission status to processing
+      await Submission.findByIdAndUpdate(submissionId, { 
+        transcriptionStatus: 'processing'
+      });
+      
+      // Create temporary video file from buffer
+      logger.info(`Creating temporary file for video: ${filename}`);
+      const videoPath = await this.createTempFileFromBuffer(videoBuffer, filename);
+      tempFiles.push(videoPath);
+      
+      // Extract audio from video
+      logger.info(`Extracting audio from video: ${filename}`);
+      const audioPath = await this.extractAudioFromVideo(videoPath);
+      tempFiles.push(audioPath);
+      
+      // Transcribe the extracted audio
+      logger.info(`Transcribing audio for video: ${filename}`);
+      const transcriptionResults = await this.transcribeAudio(audioPath);
+      
+      // Get the challenge details for evaluation
+      const submission = await Submission.findById(submissionId)
+        .populate('challenge');
+      
+      if (!submission) {
+        throw new Error(`Submission ${submissionId} not found`);
+      }
+      
+      const challenge = submission.challenge;
+      
+      // Calculate speech metrics using the word-level data
+      logger.info(`Calculating speech metrics for submission: ${submissionId}`);
+      const speechMetricsService = require('./speechMetrics');
+      
+      // Process word-level metrics
+      const wordLevelMetrics = transcriptionResults.words
+        .map(word => speechMetricsService.calculateSpeakingRate(word))
+        .filter(metric => metric !== null);
+      
+      // Calculate overall metrics
+      const overallMetrics = speechMetricsService.calculateAverageSpeakingRate(transcriptionResults.words);
+      
+      // Create complete speech metrics object
+      const speechMetrics = {
+        overallMetrics,
+        thresholds: {
+          slow: speechMetricsService.SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
+          optimal: speechMetricsService.SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
+          fast: speechMetricsService.SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
+        },
+        wordLevelMetrics
       };
-    }, { text: '', confidence: 0, words: [] });
+      
+      // Update submission with transcript and speech metrics
+      await Submission.findByIdAndUpdate(submissionId, {
+        transcript: transcriptionResults.transcript,
+        transcriptionStatus: 'completed',
+        speechMetrics: speechMetrics
+      });
+      
+      // Perform automatic evaluation if criteria exists
+      if (challenge && challenge.evaluationCriteria && challenge.evaluationCriteria.length > 0) {
+        logger.info(`Performing automatic evaluation for submission: ${submissionId}`);
+        
+        // Keyword-based evaluation
+        const evaluationResults = evaluationService.evaluateTranscript(
+          transcriptionResults.transcript, 
+          challenge.evaluationCriteria
+        );
+        
+        // Semantic similarity evaluation (if targetScript exists)
+        let semanticSimilarity = { score: 0, similarity: 0 };
+        logger.info(`Calculating semantic similarity for submission: ${submissionId}`);
+        if (challenge.idealPitchEmbeddings) {
+          try {
+            logger.info(`Getting embeddings for submission: ${submissionId}`);
+            // Get embeddings for both transcript and target script
+            const transcriptEmbedding = await embeddingService.getEmbeddings(transcriptionResults.transcript);
+            const targetEmbedding = challenge.idealPitchEmbeddings;
+            
+            // Calculate similarity
+            const similarity = embeddingService.calculateCosineSimilarity(transcriptEmbedding, targetEmbedding);
+            const similarityScore = embeddingService.calculateSemanticScore(similarity);
+            
+            semanticSimilarity = {
+              score: similarityScore,
+              similarity
+            };
+          } catch (error) {
+            logger.error(`Error calculating semantic similarity: ${error.message}`);
+          }
+        }
+        
+        // Update submission with evaluation results
+        await Submission.findByIdAndUpdate(submissionId, {
+          'automaticEvaluation.score': evaluationResults.score,
+          'automaticEvaluation.details': evaluationResults.details,
+          'automaticEvaluation.rawScore': evaluationResults.rawScore,
+          'automaticEvaluation.maxPossibleScore': evaluationResults.maxPossibleScore,
+          'automaticEvaluation.evaluatedAt': new Date(),
+          'automaticEvaluation.semanticSimilarity': semanticSimilarity
+        });
+      }
+      
+      logger.info(`Completed processing for submission: ${submissionId}`);
+    } catch (error) {
+      logger.error(`Video transcription failed: ${error.message}`);
+      
+      // Update submission status to failed
+      await Submission.findByIdAndUpdate(submissionId, {
+        transcriptionStatus: 'failed'
+      });
+    } finally {
+      // Clean up temporary files
+      await this.cleanupTempFiles(tempFiles);
+    }
   }
 }
 

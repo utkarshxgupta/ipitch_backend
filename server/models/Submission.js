@@ -47,7 +47,11 @@ const SubmissionSchema = new mongoose.Schema({
     }],
     rawScore: { type: Number },
     maxPossibleScore: { type: Number },
-    evaluatedAt: { type: Date }
+    evaluatedAt: { type: Date },
+    semanticSimilarity: {
+      score: { type: Number },
+      similarity: { type: Number }
+    }
   }
 });
 

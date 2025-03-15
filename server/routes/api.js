@@ -40,6 +40,7 @@ const {
   getAssignments,
   getAssignmentsByUser,
   getAssignmentById,
+  getAssignmentProgress,
 } = require("../controllers/assignmentController");
 const router = express.Router();
 const multer = require("multer");
@@ -48,7 +49,7 @@ const multer = require("multer");
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
+    fileSize: 120 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (req, file, cb) => {
     // Accept only video files
@@ -170,5 +171,6 @@ router.get(
 );
 router.get("/assignments/user", auth, getAssignmentsByUser);
 router.get("/assignments/:id", auth, getAssignmentById);
+router.get("/assignments/:id/progress", auth, getAssignmentProgress);
 
 module.exports = router;

@@ -1,4 +1,5 @@
 const Challenge = require('../models/Challenge');
+const EmbeddingService = require('../services/embeddingService');
 
 // @route    POST api/challenges
 // @desc     Create a new challenge
@@ -17,10 +18,14 @@ exports.createChallenge = async (req, res) => {
       });
     }
 
+    // Get embeddings for ideal pitch
+    const idealPitchEmbeddings = await EmbeddingService.getEmbeddings(idealPitch);
+
     const challenge = new Challenge({
       name,
       description,
       idealPitch,
+      idealPitchEmbeddings,
       evaluationCriteria,
       createdBy: req.user.id,
     });

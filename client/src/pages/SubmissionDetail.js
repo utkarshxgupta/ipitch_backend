@@ -208,13 +208,7 @@ const VideoPlayer = ({ url }) => (
 );
 
 const EvaluationCard = ({ evaluation }) => (
-  <Box
-    p={4}
-    borderWidth={1}
-    borderRadius="md"
-    mb={4}
-    bg={useColorModeValue("white", "gray.700")}
-  >
+  <Box p={4} borderWidth={1} borderRadius="md" mb={4} bg={useColorModeValue("white", "gray.700")}>
     <HStack justify="space-between" mb={2}>
       <Text fontWeight="bold" fontSize="lg">
         Score: {evaluation.score}
@@ -299,6 +293,40 @@ const EvaluationForm = ({ submissionId, onEvaluationAdded }) => {
         <Button type="submit" colorScheme="brand" width="100%">
           Submit Evaluation
         </Button>
+      </VStack>
+    </Box>
+  );
+};
+
+const AutoEvaluationCard = ({ automaticEvaluation }) => {
+  if (!automaticEvaluation) return null;
+
+  return (
+    <Box p={4} borderWidth={1} borderRadius="md" mb={4}>
+      <VStack align="stretch" spacing={3}>
+        <HStack justify="space-between">
+          <Text fontWeight="bold">Overall Score:</Text>
+          <Badge colorScheme={automaticEvaluation.score >= 70 ? "green" : "orange"}>
+            {automaticEvaluation.score}%
+          </Badge>
+        </HStack>
+        
+        {automaticEvaluation.semanticSimilarity && (
+          <HStack justify="space-between">
+            <Text fontWeight="bold">Semantic Similarity:</Text>
+            <Text>{(automaticEvaluation.semanticSimilarity.similarity * 100).toFixed(1)}%</Text>
+          </HStack>
+        )}
+
+        <Text fontWeight="bold" mt={2}>Keyword Analysis:</Text>
+        {automaticEvaluation.details.map((detail, index) => (
+          <HStack key={index} justify="space-between">
+            <Text>{detail.keyword}</Text>
+            <Text>
+              {detail.occurrences} occurrences (Score: {detail.score})
+            </Text>
+          </HStack>
+        ))}
       </VStack>
     </Box>
   );
@@ -413,6 +441,16 @@ const SubmissionDetail = () => {
             {submission.automaticEvaluation && (
               <AutomaticEvaluationDisplay evaluation={submission.automaticEvaluation} />
             )}
+
+            {/* Automatic Evaluation */}
+            {submission.automaticEvaluation && (
+              <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
+                <Heading size="md" mb={4}>
+                  Automatic Evaluation
+                </Heading>
+                <AutoEvaluationCard automaticEvaluation={submission.automaticEvaluation} />
+              </Box>
+            )}
           </VStack>
         </GridItem>
 
@@ -480,11 +518,11 @@ const SubmissionDetail = () => {
               </VStack>
             </Box>
 
-            {/* Evaluations */}
+            {/* Manual Evaluations */}
             {submission.evaluations.length > 0 && (
               <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
                 <Heading size="md" mb={4}>
-                  Evaluations
+                  Manual Evaluations
                 </Heading>
                 <VStack spacing={4}>
                   {submission.evaluations.map((evaluation, idx) => (

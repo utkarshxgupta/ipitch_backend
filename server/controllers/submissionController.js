@@ -41,12 +41,21 @@ exports.createSubmission = async (req, res) => {
 
     const submission = await newSubmission.save();
 
-    TranscriptionService.transcribeVideo(
-      req.file.buffer,
-      req.file.originalname,
-      submission._id
-    );
+    // In the submission POST endpoint handler
+    // Add to the existing endpoint where you handle the video upload
 
+    // If transcript is provided in the request body
+    if (req.body.transcript) {
+      submission.transcript = req.body.transcript;
+      submission.transcriptionStatus = "completed"; // Since we already have the transcript
+      await submission.save();
+    } else {
+      TranscriptionService.transcribeVideo(
+        req.file.buffer,
+        req.file.originalname,
+        submission._id
+      );
+    }
     // const indexResult = await azureVideoIndexer.uploadVideo(fileUrl, fileName);
     // console.log("Index Result: ", indexResult);
 
@@ -128,10 +137,10 @@ exports.getSubmissionById = async (req, res) => {
   try {
     console.log("WE ARE INSIDE GET SUBMISSIONS BY ID");
     const submission = await Submission.findById(req.params.id).populate([
-      {path: "trainee", select: "name"},
-      {path: "challenge", select: "name"},
-      {path: "assignment", select: "name"},
-      {path: "comments.commenter", select: "name"},
+      { path: "trainee", select: "name" },
+      { path: "challenge", select: "name" },
+      { path: "assignment", select: "name" },
+      { path: "comments.commenter", select: "name" },
     ]);
     // if user role is trainee, then check if the submission belongs to the user
     if (req.user.role.includes("trainee")) {
@@ -180,20 +189,20 @@ exports.getAllSubmissions = async (req, res) => {
 
       const group = {
         assignmentId,
-        assignmentName: submissions[0]?.assignment?.name || '',
+        assignmentName: submissions[0]?.assignment?.name || "",
         submissions,
         hasMore: submissions.length === limit,
-        lastId: submissions[submissions.length - 1]?._id
+        lastId: submissions[submissions.length - 1]?._id,
       };
 
       return res.json({
         groups: [group],
-        total: 1
+        total: 1,
       });
     }
 
     // First, get all unique assignment IDs from submissions
-    const uniqueAssignments = await Submission.distinct('assignment', query);
+    const uniqueAssignments = await Submission.distinct("assignment", query);
 
     // Get submissions for each assignment
     const groupedSubmissions = await Promise.all(
@@ -208,22 +217,22 @@ exports.getAllSubmissions = async (req, res) => {
 
         return {
           assignmentId,
-          assignmentName: submissions[0]?.assignment?.name || '',
+          assignmentName: submissions[0]?.assignment?.name || "",
           submissions,
           hasMore: submissions.length === limit,
-          lastId: submissions[submissions.length - 1]?._id
+          lastId: submissions[submissions.length - 1]?._id,
         };
       })
     );
 
     // Filter out empty assignment groups
     const filteredGroups = groupedSubmissions.filter(
-      group => group.submissions.length > 0
+      (group) => group.submissions.length > 0
     );
 
     return res.json({
       groups: filteredGroups,
-      total: filteredGroups.length
+      total: filteredGroups.length,
     });
   } catch (error) {
     console.error(error);
@@ -246,7 +255,7 @@ exports.addComment = async (req, res) => {
     }
     const newComment = {
       commenter: req.user.id,
-      text
+      text,
     };
     submission.comments.push(newComment);
     await submission.save();

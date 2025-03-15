@@ -20,7 +20,7 @@ import {
   Icon,
   Button,
 } from "@chakra-ui/react";
-import { FaCalendar, FaUser, FaTasks, FaChevronRight } from 'react-icons/fa';
+import { FaCalendar, FaUser, FaTasks, FaChevronRight } from "react-icons/fa";
 import MySubmissions from "./MySubmissions";
 
 const AssignmentDetail = () => {
@@ -29,9 +29,9 @@ const AssignmentDetail = () => {
   const [assignment, setAssignment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const bgColor = useColorModeValue('white', 'gray.700');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const hoverBgColor = useColorModeValue('gray.50', 'gray.600');
+  const bgColor = useColorModeValue("white", "gray.700");
+  const borderColor = useColorModeValue("gray.200", "gray.600");
+  const hoverBgColor = useColorModeValue("gray.50", "gray.600");
 
   useEffect(() => {
     const fetchAssignment = async () => {
@@ -73,7 +73,7 @@ const AssignmentDetail = () => {
           <VStack align="stretch" spacing={4}>
             <HStack justify="space-between" wrap="wrap">
               <Heading>{assignment.name}</Heading>
-              <Badge 
+              <Badge
                 colorScheme={isActive ? "green" : "red"}
                 p={2}
                 borderRadius="full"
@@ -83,7 +83,10 @@ const AssignmentDetail = () => {
               </Badge>
             </HStack>
 
-            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={4}>
+            <Grid
+              templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
+              gap={4}
+            >
               <HStack>
                 <Icon as={FaCalendar} color="brand.500" />
                 <VStack align="start" spacing={0}>
@@ -128,15 +131,17 @@ const AssignmentDetail = () => {
                     borderColor={borderColor}
                     borderRadius="md"
                     cursor="pointer"
-                    onClick={() => navigate(`/challenges/${challenge._id}`, { 
-                      state: { 
-                        assignmentId: assignment._id, 
-                        assignmentActive: isActive 
-                      }
-                    })}
-                    _hover={{ 
+                    onClick={() =>
+                      navigate(`/challenges/${challenge._id}`, {
+                        state: {
+                          assignmentId: assignment._id,
+                          assignmentActive: isActive,
+                        },
+                      })
+                    }
+                    _hover={{
                       bg: hoverBgColor,
-                      borderColor: 'brand.500'
+                      borderColor: "brand.500",
                     }}
                   >
                     <HStack justify="space-between">
@@ -149,34 +154,36 @@ const AssignmentDetail = () => {
             </Box>
           </GridItem>
 
-          <GridItem>
-            <VStack spacing={6}>
-              {assignment.assignedUsers && (
-                <Box p={6} bg={bgColor} rounded="lg" shadow="sm" w="100%">
-                  <Heading size="md" mb={4}>Assigned Users</Heading>
-                  <List spacing={3}>
-                    {assignment.assignedUsers.map((user) => (
-                      <ListItem 
-                        key={user._id}
-                        p={3}
-                        borderWidth={1}
-                        borderColor={borderColor}
-                        borderRadius="md"
-                      >
-                        <HStack>
-                          <Icon as={FaUser} color="brand.500" />
-                          <Text>{user.name}</Text>
-                        </HStack>
-                      </ListItem>
-                    ))}
-                  </List>
-                </Box>
-              )}
-
+          {assignment.assignedUsers && (
+            <GridItem>
               <Box p={6} bg={bgColor} rounded="lg" shadow="sm" w="100%">
-                <MySubmissions assignmentId={assignment._id} />
+                <Heading size="md" mb={4}>
+                  Assigned Users
+                </Heading>
+                <List spacing={3}>
+                  {assignment.assignedUsers?.map((user) => (
+                    <ListItem
+                      key={user._id}
+                      p={3}
+                      borderWidth={1}
+                      borderColor={borderColor}
+                      borderRadius="md"
+                    >
+                      <HStack>
+                        <Icon as={FaUser} color="brand.500" />
+                        <Text>{user.name}</Text>
+                      </HStack>
+                    </ListItem>
+                  ))}
+                </List>
               </Box>
-            </VStack>
+            </GridItem>
+          )}
+
+          <GridItem colSpan={{ base: 1, lg: 2 }}>
+            <Box p={6} bg={bgColor} rounded="lg" shadow="sm" w="100%">
+              <MySubmissions assignmentId={assignment._id} />
+            </Box>
           </GridItem>
         </Grid>
       </VStack>

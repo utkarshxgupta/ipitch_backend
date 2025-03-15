@@ -25,7 +25,7 @@ const SubmissionForm = ({ challengeId, assignmentId }) => {
   const navigate = useNavigate();
 
   const validateFile = (file) => {
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB to match server
+    const MAX_FILE_SIZE = 120 * 1024 * 1024; // 120MB to match server
     const ALLOWED_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 
     if (!file) {
@@ -37,7 +37,7 @@ const SubmissionForm = ({ challengeId, assignmentId }) => {
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      throw new Error('File is too large. Maximum size is 50MB.');
+      throw new Error('File is too large. Maximum size is 120MB.');
     }
   };
 
@@ -120,7 +120,7 @@ const SubmissionForm = ({ challengeId, assignmentId }) => {
           isDisabled={uploading}
         />
         <Text fontSize="sm" color="gray.500" mt={1}>
-          Supported formats: MP4, WebM, MOV (Max size: 50MB)
+          Supported formats: MP4, WebM, MOV (Max size: 120MB)
         </Text>
       </FormControl>
 

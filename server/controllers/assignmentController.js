@@ -1,4 +1,5 @@
 const Assignment = require("../models/Assignment");
+const Submission = require("../models/Submission");
 
 // @route    POST api/assignments
 // @desc     Create a new assignment
@@ -57,6 +58,8 @@ exports.getAssignmentById = async (req, res) => {
     console.log("REQ USER ", req.user);
     const isManagerAdmin = req.user.role.includes("manager") || req.user.role.includes("admin");
 
+    // don't send entire challenge object, only send name
+
     const assignment = await Assignment.findById(req.params.id).populate([
       { path: "challenges" },
       { path: "createdBy", select: "name" },
@@ -76,3 +79,39 @@ exports.getAssignmentById = async (req, res) => {
   }
 };
 
+// @route GET api/assignments/:id/progress 
+// @desc Gets the progress of challenges in assignment
+// @access Private
+exports.getAssignmentProgress = async (req, res) => {
+  try {
+    const assignmentId = req.params.id;
+    
+    // Get the assignment
+    const assignment = await Assignment.findById(assignmentId);
+    if (!assignment) {
+      return res.status(404).json({ msg: 'Assignment not found' });
+    }
+    
+    const totalChallenges = assignment.challenges.length;
+    
+    // Get submissions by current user for this assignment
+    const submissions = await Submission.find({
+      assignment: assignmentId,
+      trainee: req.user.id
+    });
+    
+    // Get unique challenge IDs that have been attempted
+    const completedChallengeIds = [...new Set(submissions.map(sub => sub.challenge.toString()))];
+    const completedChallenges = completedChallengeIds.length;
+    
+    return res.json({
+      totalChallenges,
+      completedChallenges,
+      challenges: assignment.challenges,
+      completedChallengeIds
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+};

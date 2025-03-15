@@ -24,6 +24,8 @@ import AssignmentDetail from "../pages/AssignmentDetail";
 import PrivateRoute from "./PrivateRoute";
 import RoleRoute from "./RoleRoute"; // A new role-based route component
 import { AuthProvider } from "../context/authContext";
+import AssignmentAttempt from "../pages/AssignmentAttempt";
+import ChallengeAttempt from "../pages/ChallengeAttempt";
 
 const AppRouter = () => {
   return (
@@ -85,6 +87,7 @@ const AppRouter = () => {
           <Route path="/challenges" element={<ChallengeList />} />
           <Route path="/challenges/create" element={<PrivateRoute element={<ChallengeForm />} />} />
           <Route path="/challenges/:id" element={<ChallengeDetail />} />
+          <Route path="/challenges/:id/new" element={<ChallengeAttempt />} />
           <Route
             path="/submissions/challenge/:id"
             element={<PrivateRoute element={<SubmissionList />} />}
@@ -117,6 +120,10 @@ const AppRouter = () => {
           <Route
             path="/assignments/:id"
             element={<PrivateRoute element={<AssignmentDetail />} />}
+          />
+          <Route
+            path="/assignments/:id/new"
+            element={<PrivateRoute element={<AssignmentAttempt />} />}
           />
         </Routes>
       </Router>
