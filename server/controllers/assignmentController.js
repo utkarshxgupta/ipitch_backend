@@ -5,7 +5,7 @@ const Submission = require("../models/Submission");
 // @desc     Create a new assignment
 // @access   Private (Manager/Admin)
 exports.createAssignment = async (req, res) => {
-  const { name, challenges, assignedUsers, startDate, endDate } = req.body;
+  const { name, challenges, assignedUsers, startDate, endDate, enableHints } = req.body;
   try {
     const assignment = new Assignment({
       name,
@@ -13,6 +13,7 @@ exports.createAssignment = async (req, res) => {
       assignedUsers,
       startDate,
       endDate,
+      enableHints: enableHints || false,
       createdBy: req.user.id,
     });
     await assignment.save();
@@ -55,7 +56,7 @@ exports.getAssignmentsByUser = async (req, res) => {
 exports.getAssignmentById = async (req, res) => {
   try {
     // if user role is not manager or admin, check if the assignment is assigned to the user and we don't need to send assignedUsers
-    console.log("REQ USER ", req.user);
+    // console.log("REQ USER ", req.user);
     const isManagerAdmin = req.user.role.includes("manager") || req.user.role.includes("admin");
 
     // don't send entire challenge object, only send name
@@ -71,11 +72,56 @@ exports.getAssignmentById = async (req, res) => {
     if (!isManagerAdmin) {
       assignment.assignedUsers = null;
     }
-    console.log("ASSIGNMENT ", assignment);
+    // console.log("ASSIGNMENT ", assignment);
     res.json(assignment);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
+  }
+};
+
+// @route    PUT api/assignments/:id
+// @desc     Update an assignment
+// @access   Private (Manager/Admin)
+exports.updateAssignment = async (req, res) => {
+  const { name, challenges, assignedUsers, startDate, endDate, enableHints } = req.body;
+  
+  // Build assignment object
+  const assignmentFields = {};
+  if (name) assignmentFields.name = name;
+  if (challenges) assignmentFields.challenges = challenges;
+  if (assignedUsers) assignmentFields.assignedUsers = assignedUsers;
+  if (startDate) assignmentFields.startDate = startDate;
+  if (endDate) assignmentFields.endDate = endDate;
+  if (enableHints !== undefined) assignmentFields.enableHints = enableHints;
+  
+  try {
+    let assignment = await Assignment.findById(req.params.id);
+    
+    if (!assignment) {
+      return res.status(404).json({ msg: 'Assignment not found' });
+    }
+    
+    // Make sure user is the assignment creator or an admin
+    if (assignment.createdBy.toString() !== req.user.id && 
+        !req.user.role.includes('admin')) {
+      return res.status(401).json({ msg: 'Not authorized' });
+    }
+    
+    assignment = await Assignment.findByIdAndUpdate(
+      req.params.id,
+      { $set: assignmentFields },
+      { new: true }
+    ).populate([
+      { path: "challenges" },
+      { path: "createdBy", select: "name" },
+      { path: "assignedUsers", select: "name email" }
+    ]);
+    
+    res.json(assignment);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
   }
 };
 

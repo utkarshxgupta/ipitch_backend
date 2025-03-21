@@ -41,7 +41,9 @@ const SubmissionSchema = new mongoose.Schema({
     score: { type: Number },
     details: [{
       keyword: { type: String },
-      occurrences: { type: Number },
+      matched: { type: Boolean },
+      matchedSentence: { type: String },
+      similarity: { type: Number },
       weight: { type: Number },
       score: { type: Number }
     }],

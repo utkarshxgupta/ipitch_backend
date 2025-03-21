@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const apiRoutes = require('./routes/api');
+const TransformerEmbeddingService = require('./services/transformerEmbeddingService');
 
 dotenv.config();
 
@@ -36,6 +37,26 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-app.listen(port, () => {
-  console.log(`Server is listening on port ${port}`);
-});
+async function initializeServices() {
+  try {
+    // Pre-load models in parallel
+    await Promise.all([
+      TransformerEmbeddingService.initialize()
+    ]);
+    
+    // Start the server only after initializing services
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server started on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to initialize services:', error);
+    // Continue starting the server even if model loading fails
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server started on port ${PORT} (some services failed to initialize)`);
+    });
+  }
+}
+
+initializeServices();

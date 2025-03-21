@@ -368,33 +368,23 @@ class TranscriptionService {
       if (challenge && challenge.evaluationCriteria && challenge.evaluationCriteria.length > 0) {
         logger.info(`Performing automatic evaluation for submission: ${submissionId}`);
         
-        // Keyword-based evaluation
-        const evaluationResults = evaluationService.evaluateTranscript(
+        // Import semantic evaluation service
+        const semanticEvaluationService = require('./semanticEvaluationService');
+        
+        // Semantic evaluation of criteria
+        const evaluationResults = await semanticEvaluationService.evaluateTranscript(
           transcriptionResults.transcript, 
           challenge.evaluationCriteria
         );
         
-        // Semantic similarity evaluation (if targetScript exists)
+        // Semantic similarity evaluation with ideal pitch
         let semanticSimilarity = { score: 0, similarity: 0 };
-        logger.info(`Calculating semantic similarity for submission: ${submissionId}`);
-        if (challenge.idealPitchEmbeddings) {
-          try {
-            logger.info(`Getting embeddings for submission: ${submissionId}`);
-            // Get embeddings for both transcript and target script
-            const transcriptEmbedding = await embeddingService.getEmbeddings(transcriptionResults.transcript);
-            const targetEmbedding = challenge.idealPitchEmbeddings;
-            
-            // Calculate similarity
-            const similarity = embeddingService.calculateCosineSimilarity(transcriptEmbedding, targetEmbedding);
-            const similarityScore = embeddingService.calculateSemanticScore(similarity);
-            
-            semanticSimilarity = {
-              score: similarityScore,
-              similarity
-            };
-          } catch (error) {
-            logger.error(`Error calculating semantic similarity: ${error.message}`);
-          }
+        if (challenge.idealPitchEmbeddings && challenge.idealPitchEmbeddings.length > 0) {
+          logger.info(`Calculating semantic similarity for submission: ${submissionId}`);
+          semanticSimilarity = await semanticEvaluationService.calculateIdealPitchSimilarity(
+            transcriptionResults.transcript,
+            challenge.idealPitchEmbeddings
+          );
         }
         
         // Update submission with evaluation results

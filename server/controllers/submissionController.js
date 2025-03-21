@@ -3,7 +3,8 @@ const Challenge = require("../models/Challenge");
 const Assignment = require("../models/Assignment");
 const StorageService = require("../services/storage");
 const TranscriptionService = require("../services/transcription");
-// const azureVideoIndexer = require('../services/azureVideoIndexer');
+const SemanticEvaluationService = require("../services/semanticEvaluationService");
+const logger = require("../utils/logger");
 
 // @route    POST api/submissions
 // @desc     Create a new submission
@@ -41,28 +42,47 @@ exports.createSubmission = async (req, res) => {
 
     const submission = await newSubmission.save();
 
-    // In the submission POST endpoint handler
-    // Add to the existing endpoint where you handle the video upload
-
     // If transcript is provided in the request body
     if (req.body.transcript) {
-      submission.transcript = req.body.transcript;
-      submission.transcriptionStatus = "completed"; // Since we already have the transcript
-      await submission.save();
+      try {
+        // Use transcript directly without punctuation restoration
+        submission.transcript = req.body.transcript;
+        submission.transcriptionStatus = "completed"; 
+        await submission.save();
+        
+        // Initiate semantic evaluation with the original transcript
+        performSemanticEvaluation(submission._id, submission.transcript, challenge);
+        
+        return res.status(201).json({
+          message: "Submission received with transcript. Evaluation in progress...",
+          submission,
+        });
+      } catch (error) {
+        logger.error(`Error processing transcript: ${error.message}`);
+        submission.transcript = req.body.transcript;
+        submission.transcriptionStatus = "completed";
+        await submission.save();
+        
+        performSemanticEvaluation(submission._id, req.body.transcript, challenge);
+        
+        return res.status(201).json({
+          message: "Submission received with transcript. Evaluation in progress...",
+          submission,
+        });
+      }
     } else {
+      // No transcript provided, start transcription process
       TranscriptionService.transcribeVideo(
         req.file.buffer,
         req.file.originalname,
         submission._id
       );
+      
+      return res.status(201).json({
+        message: "Submission received, transcription in progress...",
+        submission,
+      });
     }
-    // const indexResult = await azureVideoIndexer.uploadVideo(fileUrl, fileName);
-    // console.log("Index Result: ", indexResult);
-
-    return res.status(201).json({
-      message: "Submission received, transcription in progress...",
-      submission,
-    });
   } catch (error) {
     console.error("Upload error:", error);
     res.status(500).json({
@@ -71,6 +91,53 @@ exports.createSubmission = async (req, res) => {
     });
   }
 };
+
+/**
+ * Perform semantic evaluation in the background
+ * @param {string} submissionId - MongoDB ID of the submission
+ * @param {string} transcript - Submission transcript
+ * @param {Object} challenge - Challenge document with evaluation criteria
+ */
+async function performSemanticEvaluation(submissionId, transcript, challenge) {
+  try {
+    logger.info(`Starting background semantic evaluation for submission: ${submissionId}`);
+    
+    // Check if challenge has evaluation criteria
+    if (!challenge?.evaluationCriteria || challenge.evaluationCriteria.length === 0) {
+      logger.warn(`No evaluation criteria found for challenge: ${challenge._id}`);
+      return;
+    }
+    
+    // Evaluate transcript against criteria
+    const evaluationResults = await SemanticEvaluationService.evaluateTranscript(
+      transcript, 
+      challenge.evaluationCriteria
+    );
+    
+    // Calculate semantic similarity with ideal pitch if available
+    let semanticSimilarity = { score: 0, similarity: 0 };
+    if (challenge.idealPitchEmbeddings && challenge.idealPitchEmbeddings.length > 0) {
+      semanticSimilarity = await SemanticEvaluationService.calculateIdealPitchSimilarity(
+        transcript,
+        challenge.idealPitchEmbeddings
+      );
+    }
+    
+    // Update submission with evaluation results
+    await Submission.findByIdAndUpdate(submissionId, {
+      'automaticEvaluation.score': evaluationResults.score,
+      'automaticEvaluation.details': evaluationResults.details,
+      'automaticEvaluation.rawScore': evaluationResults.rawScore,
+      'automaticEvaluation.maxPossibleScore': evaluationResults.maxPossibleScore,
+      'automaticEvaluation.evaluatedAt': new Date(),
+      'automaticEvaluation.semanticSimilarity': semanticSimilarity
+    });
+    
+    logger.info(`Semantic evaluation completed for submission: ${submissionId}`);
+  } catch (error) {
+    logger.error(`Error during background semantic evaluation: ${error.message}`, error);
+  }
+}
 
 // @route    GET api/submissions/:id
 // @desc     Get submissions for a challenge by ID
@@ -122,7 +189,7 @@ exports.getSubmissionsByAssignmentId = async (req, res) => {
       trainee: req.user.id,
       assignment: req.params.id,
     }).populate("challenge", ["name"]);
-    console.log(submissions);
+    // console.log(submissions);
     res.json(submissions);
   } catch (error) {
     console.error(error);

@@ -56,7 +56,7 @@ const ChallengeAttempt = () => {
   const navigate = useNavigate();
   const { token } = useContext(AuthContext);
   const toast = useToast();
-  const { assignmentActive, assignmentId } = location.state || {};
+  const { assignmentActive, assignmentId, enableHints } = location.state || {};
 
   // Challenge data states
   const [challenge, setChallenge] = useState(null);
@@ -74,6 +74,8 @@ const ChallengeAttempt = () => {
   // Transcription states
   const [transcript, setTranscript] = useState("");
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [finalTranscript, setFinalTranscript] = useState("");
+  const [interimTranscript, setInterimTranscript] = useState("");
   
   // UI states
   const [showHints, setShowHints] = useState(true);
@@ -170,28 +172,36 @@ const ChallengeAttempt = () => {
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = 'en-IN';
     
     recognition.onresult = (event) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
+      let currentInterim = '';
+      let newFinal = '';
       
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' ';
+          newFinal += transcript + ' ';
         } else {
-          interimTranscript += transcript;
+          currentInterim += transcript;
         }
       }
       
-      if (finalTranscript) {
-        setTranscript(prev => prev + finalTranscript);
+      setFinalTranscript(prevFinal => {
+        const updatedFinal = newFinal ? prevFinal + newFinal : prevFinal;
         
-        // Auto-scroll to bottom of transcript
-        if (transcriptContainerRef.current) {
-          transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
-        }
+        setInterimTranscript(currentInterim);
+        
+        // Use the updated values directly here
+        const combinedTranscript = updatedFinal + currentInterim;
+        setTranscript(combinedTranscript);
+        
+        return updatedFinal;
+      });
+      
+      // Auto-scroll to bottom (keep this outside)
+      if (transcriptContainerRef.current) {
+        transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
       }
     };
     
@@ -209,9 +219,17 @@ const ChallengeAttempt = () => {
     };
     
     recognition.onend = () => {
-      // If still recording, restart recognition
-      if (isRecording) {
-        recognition.start();
+      // Check the current state of mediaRecorder instead of relying on isRecording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        console.log("Speech recognition ended, restarting because still recording...");
+        // Add a small delay before restarting to prevent rapid restart loops
+        setTimeout(() => {
+          try {
+            recognition.start();
+          } catch (err) {
+            console.error("Error restarting speech recognition:", err);
+          }
+        }, 300);
       } else {
         setIsTranscribing(false);
       }
@@ -219,7 +237,7 @@ const ChallengeAttempt = () => {
     
     recognitionRef.current = recognition;
     return true;
-  }, [toast, isRecording]);
+  }, [toast]);
 
   // Start recording process
   const startRecording = async () => {
@@ -334,6 +352,8 @@ const ChallengeAttempt = () => {
     chunksRef.current = [];
     setRecordingTime(0);
     setTranscript("");
+    setFinalTranscript(""); // Reset final transcript
+    setInterimTranscript(""); // Reset interim transcript
     
     console.log("Setting up MediaRecorder...");
     
@@ -584,6 +604,13 @@ const ChallengeAttempt = () => {
     }
   };
 
+  // Add this to your component function
+  useEffect(() => {
+    if (enableHints) {
+      setShowHints(true);
+    }
+  }, [enableHints]);
+
   // Loading state
   if (loading) {
     return (
@@ -595,20 +622,6 @@ const ChallengeAttempt = () => {
       </Center>
     );
   }
-
-  // Dummy hints data
-  const hints = [
-    "Start with a strong hook to grab attention",
-    "Clearly state the problem you're solving",
-    "Use confident body language and maintain eye contact",
-    "Keep your pitch concise and focused on key points",
-    "End with a clear call to action",
-    "Use simple language and avoid jargon",
-    "Share a brief story or example to illustrate your point",
-    "Practice your timing to stay within limits",
-    "Show enthusiasm and energy in your delivery",
-    "Address potential objections proactively"
-  ];
 
   return (
     <Container maxW="container.xl" py={4} position="relative" height="calc(100vh - 80px)">
@@ -736,48 +749,95 @@ const ChallengeAttempt = () => {
           align="stretch"
           h="full"
         >
-          {/* Hints Section */}
-          <Box>
-            <HStack 
-              justify="space-between" 
-              mb={2} 
-              onClick={() => setShowHints(!showHints)} 
-              cursor="pointer"
-              bg={bgColor}
-              p={3}
-              borderRadius="md"
-            >
-              <HStack>
-                <Icon as={FaLightbulb} color="yellow.400" />
-                <Heading size="sm">Pitch Hints</Heading>
-              </HStack>
-              <Icon as={showHints ? FaChevronDown : FaChevronRight} />
-            </HStack>
-            
-            <Collapse in={showHints} animateOpacity>
-              <Box 
-                p={4} 
-                bg={bgColor} 
-                borderRadius="md" 
-                shadow="sm"
-                borderWidth={1}
-                borderColor={borderColor}
-                maxH="200px"
-                overflowY="auto"
+          {/* Hints Section - only render if enableHints is true */}
+          {enableHints && (
+            <Box>
+              <HStack 
+                justify="space-between" 
+                mb={2} 
+                onClick={() => setShowHints(!showHints)} 
+                cursor="pointer"
+                bg={bgColor}
+                p={3}
+                borderRadius="md"
               >
-                <List spacing={2}>
-                  {hints.map((hint, index) => (
-                    <ListItem key={index}>
-                      <HStack align="flex-start">
-                        <ListIcon as={FaInfoCircle} color="brand.500" mt={1} />
-                        <Text fontSize="sm">{hint}</Text>
-                      </HStack>
-                    </ListItem>
-                  ))}
-                </List>
-              </Box>
-            </Collapse>
-          </Box>
+                <HStack>
+                  <Icon as={FaLightbulb} color="yellow.400" />
+                  <Heading size="sm">Pitch Hints</Heading>
+                </HStack>
+                <Icon as={showHints ? FaChevronDown : FaChevronRight} />
+              </HStack>
+              
+              <Collapse in={showHints} animateOpacity>
+                <Box 
+                  p={4} 
+                  bg={bgColor} 
+                  borderRadius="md" 
+                  shadow="sm"
+                  borderWidth={1}
+                  borderColor={borderColor}
+                  maxH="250px"
+                  overflowY="auto"
+                >
+                  <Box mb={2} px={2}>
+                    <Text fontSize="sm" fontStyle="italic" color="gray.600">
+                      These hints are based on the evaluation criteria for this challenge. Make sure to address them in your pitch.
+                    </Text>
+                  </Box>
+                  {challenge?.evaluationCriteria?.length > 0 ? (
+                    <List spacing={3}>
+                      {challenge.evaluationCriteria.map((criteria, index) => (
+                        <ListItem 
+                          key={index}
+                          p={3}
+                          borderRadius="md"
+                          borderLeftWidth="4px"
+                          borderLeftColor={criteria.weight > 0 ? "green.400" : "red.400"}
+                          bg={criteria.weight > 0 ? "green.50" : "red.50"}
+                          _dark={{
+                            bg: criteria.weight > 0 ? "rgba(74, 222, 128, 0.1)" : "rgba(248, 113, 113, 0.1)"
+                          }}
+                        >
+                          <HStack align="flex-start" spacing={3}>
+                            <Icon 
+                              as={criteria.weight > 0 ? FaCheckCircle : FaExclamationCircle} 
+                              color={criteria.weight > 0 ? "green.500" : "red.500"} 
+                              boxSize={5}
+                            />
+                            <Box>
+                              <Tooltip 
+                                label={criteria.weight > 0 ? 
+                                  "Including this will positively impact your score" : 
+                                  "Mentioning this will negatively impact your score"
+                                }
+                                placement="top"
+                              >
+                                <Badge 
+                                  mb={1}
+                                  colorScheme={criteria.weight > 0 ? "green" : "red"} 
+                                  variant="subtle"
+                                  px={2}
+                                  py={0.5}
+                                  borderRadius="full"
+                                >
+                                  {criteria.weight > 0 ? "INCLUDE THIS" : "AVOID THIS"}
+                                </Badge>
+                              </Tooltip>
+                              <Text>{criteria.keyword}</Text>
+                            </Box>
+                          </HStack>
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Text color="gray.500" textAlign="center">
+                      No specific hints available for this challenge.
+                    </Text>
+                  )}
+                </Box>
+              </Collapse>
+            </Box>
+          )}
 
           {/* Transcription Section */}
           <Box

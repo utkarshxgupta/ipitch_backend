@@ -3,11 +3,12 @@ const mongoose = require('mongoose');
 const ChallengeSchema = new mongoose.Schema({
   name: { type: String, required: true },
   description: { type: String, required: true },
-  idealPitch: { type: String, default: '' },  // Assume this is a Video URL or ID
-  idealPitchEmbeddings: { type: [Number], default: null },  // Add this field
+  idealPitch: { type: String, default: '' },
+  idealPitchEmbeddings: { type: [Number], default: null },
   evaluationCriteria: [{
     keyword: { type: String, required: true },
-    weight: { type: Number, required: true }
+    weight: { type: Number, required: true },
+    embeddings: { type: [Number], default: null }
   }],
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   createdDate: { type: Date, default: Date.now },

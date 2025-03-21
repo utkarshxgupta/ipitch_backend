@@ -62,26 +62,98 @@ const AutomaticEvaluationDisplay = ({ evaluation }) => {
         </Box>
       </SimpleGrid>
 
+      {evaluation.semanticSimilarity && (
+        <Box mb={4} p={3} borderRadius="md" border="1px solid" borderColor="gray.200">
+          <Text fontWeight="bold" mb={2}>Overall Semantic Similarity</Text>
+          <HStack justify="space-between">
+            <Text>Similarity Score:</Text>
+            <Badge colorScheme={evaluation.semanticSimilarity.similarity > 0.7 ? "green" : 
+                           evaluation.semanticSimilarity.similarity > 0.5 ? "yellow" : "red"}>
+              {(evaluation.semanticSimilarity.similarity * 100).toFixed(1)}%
+            </Badge>
+          </HStack>
+        </Box>
+      )}
+
       <Box>
-        <Text fontWeight="bold" mb={2}>Keyword Analysis</Text>
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-          {evaluation.details.map((detail, index) => (
-            <Box 
-              key={index}
-              p={3}
-              borderRadius="md"
-              border="1px solid"
-              borderColor="gray.200"
-            >
-              <Text fontWeight="semibold">{detail.keyword}</Text>
-              <Text fontSize="sm">Occurrences: {detail.occurrences}</Text>
-              <Text fontSize="sm">Weight: {detail.weight}</Text>
-              <Text fontSize="sm" color={detail.score > 0 ? "green.500" : "gray.500"}>
-                Score: {detail.score}
-              </Text>
-            </Box>
-          ))}
-        </SimpleGrid>
+        <Text fontWeight="bold" mb={3}>Criteria Analysis</Text>
+        <VStack spacing={3} align="stretch">
+          {evaluation.details.map((detail, index) => {
+            // Determine if this is a positive or negative match
+            const isPositiveMatch = detail.matched && detail.weight > 0;
+            const isNegativeMatch = detail.matched && detail.weight < 0;
+            
+            return (
+              <Box 
+                key={index}
+                p={3}
+                borderRadius="md"
+                border="1px solid"
+                borderColor={
+                  isPositiveMatch ? "green.200" : 
+                  isNegativeMatch ? "red.200" : 
+                  "gray.200"
+                }
+                bg={
+                  isPositiveMatch ? "green.50" : 
+                  isNegativeMatch ? "red.50" : 
+                  ""
+                }
+                _dark={{
+                  bg: isPositiveMatch ? "rgba(74, 222, 128, 0.1)" : 
+                      isNegativeMatch ? "rgba(248, 113, 113, 0.1)" : 
+                      "",
+                  borderColor: isPositiveMatch ? "green.600" : 
+                              isNegativeMatch ? "red.600" : 
+                              "gray.600"
+                }}
+              >
+                <HStack justify="space-between" mb={1}>
+                  <Text fontWeight="semibold">{detail.keyword}</Text>
+                  <Badge 
+                    colorScheme={
+                      isPositiveMatch ? "green" : 
+                      isNegativeMatch ? "red" : 
+                      "gray"
+                    }
+                  >
+                    {detail.matched ? 
+                      (detail.weight > 0 ? "Included (Good)" : "Included (Bad)") : 
+                      (detail.weight > 0 ? "Missing" : "Avoided (Good)")
+                    }
+                  </Badge>
+                </HStack>
+                
+                {detail.matched && detail.matchedSentence && (
+                  <Text 
+                    fontSize="sm" 
+                    fontStyle="italic" 
+                    color={detail.weight > 0 ? "green.600" : "red.600"}
+                    mb={2}
+                  >
+                    "{detail.matchedSentence}"
+                  </Text>
+                )}
+                
+                <SimpleGrid columns={3} spacing={2}>
+                  <Text fontSize="sm">Weight: {detail.weight}</Text>
+                  <Text fontSize="sm">Similarity: {(detail.similarity * 100).toFixed(1)}%</Text>
+                  <Text 
+                    fontSize="sm" 
+                    fontWeight="medium" 
+                    color={
+                      detail.score > 0 ? "green.600" : 
+                      detail.score < 0 ? "red.600" : 
+                      "gray.600"
+                    }
+                  >
+                    Score: {detail.score > 0 ? `+${detail.score}` : detail.score}
+                  </Text>
+                </SimpleGrid>
+              </Box>
+            );
+          })}
+        </VStack>
       </Box>
     </Box>
   );
@@ -100,9 +172,7 @@ const SpeechMetricsDisplay = ({ metrics }) => {
   }
 
   const {
-    averageRate = 0,
-    totalWords = 0,
-    totalDuration = 0
+    averageRate = 0
   } = metrics.overallMetrics;
 
   const {
@@ -129,46 +199,20 @@ const SpeechMetricsDisplay = ({ metrics }) => {
         </Badge>
       </HStack>
       
-      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-        <Box 
-          textAlign="center" 
-          p={4} 
-          borderRadius="md" 
-          bg={`${status.color}.100`}
-          border="1px solid"
-          borderColor={`${status.color}.300`}
-        >
-          <Text fontWeight="bold" color={`${status.color}.700`}>Speaking Rate</Text>
-          <Text fontSize="2xl">{averageRate ? averageRate.toFixed(0) : '--'}</Text>
-          <Text fontSize="sm" color="gray.600">words/min</Text>
-        </Box>
-        
-        <Box 
-          textAlign="center" 
-          p={4}
-          borderRadius="md"
-          border="1px solid"
-          borderColor="gray.200"
-        >
-          <Text fontWeight="bold">Total Words</Text>
-          <Text fontSize="2xl">{totalWords || '--'}</Text>
-          <Text fontSize="sm" color="gray.600">words</Text>
-        </Box>
-
-        <Box 
-          textAlign="center" 
-          p={4}
-          borderRadius="md"
-          border="1px solid"
-          borderColor="gray.200"
-        >
-          <Text fontWeight="bold">Duration</Text>
-          <Text fontSize="2xl">
-            {totalDuration ? (totalDuration / 60).toFixed(1) : '--'}
-          </Text>
-          <Text fontSize="sm" color="gray.600">minutes</Text>
-        </Box>
-      </SimpleGrid>
+      <Box 
+        textAlign="center" 
+        p={4} 
+        borderRadius="md" 
+        bg={`${status.color}.100`}
+        border="1px solid"
+        borderColor={`${status.color}.300`}
+        maxW="300px"
+        mx="auto"
+      >
+        <Text fontWeight="bold" color={`${status.color}.700`}>Speaking Rate</Text>
+        <Text fontSize="3xl">{averageRate ? averageRate.toFixed(0) : '--'}</Text>
+        <Text fontSize="sm" color="gray.600">words per minute</Text>
+      </Box>
     </Box>
   );
 };
@@ -440,16 +484,6 @@ const SubmissionDetail = () => {
             {/* Automatic Evaluation Display */}
             {submission.automaticEvaluation && (
               <AutomaticEvaluationDisplay evaluation={submission.automaticEvaluation} />
-            )}
-
-            {/* Automatic Evaluation */}
-            {submission.automaticEvaluation && (
-              <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
-                <Heading size="md" mb={4}>
-                  Automatic Evaluation
-                </Heading>
-                <AutoEvaluationCard automaticEvaluation={submission.automaticEvaluation} />
-              </Box>
             )}
           </VStack>
         </GridItem>

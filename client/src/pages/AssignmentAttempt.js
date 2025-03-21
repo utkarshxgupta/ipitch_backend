@@ -335,6 +335,7 @@ const AssignmentAttempt = () => {
                         state: {
                           assignmentId: assignment._id,
                           assignmentActive: isActive,
+                          enableHints: assignment.enableHints,
                         },
                       })
                     }
@@ -437,12 +438,22 @@ const AssignmentAttempt = () => {
                                   Submitted: {new Date(submission.submittedDate).toLocaleString()}
                                 </Text>
                                 <HStack>
-                                  <Badge
-                                    colorScheme={submission.transcriptionStatus === "completed" ? "green" : "orange"}
-                                    variant="subtle"
-                                  >
-                                    {submission.transcriptionStatus}
-                                  </Badge>
+                                  {submission.transcriptionStatus === "completed" ? (
+                                    submission.automaticEvaluation ? (
+                                      <Badge
+                                        colorScheme={submission.automaticEvaluation.score >= 70 ? "green" : "orange"}
+                                        variant="subtle"
+                                      >
+                                        Score: {submission.automaticEvaluation.score}%
+                                      </Badge>
+                                    ) : (
+                                      <Badge colorScheme="green" variant="subtle">Completed</Badge>
+                                    )
+                                  ) : submission.transcriptionStatus === "processing" ? (
+                                    <Badge colorScheme="yellow" variant="subtle">Processing</Badge>
+                                  ) : (
+                                    <Badge colorScheme="red" variant="subtle">Failed</Badge>
+                                  )}
                                   <Icon as={FaChevronRight} color="gray.400" size="sm" />
                                 </HStack>
                               </Flex>

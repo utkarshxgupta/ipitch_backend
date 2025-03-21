@@ -1,5 +1,6 @@
 const Challenge = require('../models/Challenge');
-const EmbeddingService = require('../services/embeddingService');
+const EmbeddingService = require('../services/transformerEmbeddingService');
+const logger = require('../utils/logger');
 
 // @route    POST api/challenges
 // @desc     Create a new challenge
@@ -11,29 +12,46 @@ exports.createChallenge = async (req, res) => {
     // Validate evaluation criteria format
     if (!Array.isArray(evaluationCriteria) || 
         !evaluationCriteria.every(criteria => 
-          criteria.keyword && typeof criteria.weight === 'number'
+          criteria.keyword && typeof criteria.weight === 'number' &&
+          criteria.weight >= -5 && criteria.weight <= 5
         )) {
       return res.status(400).json({ 
-        msg: 'Evaluation criteria must be an array of {keyword, weight} objects'
+        msg: 'Evaluation criteria must be an array of {keyword, weight} objects with weights between -5 and 5'
       });
     }
 
-    // Get embeddings for ideal pitch
-    const idealPitchEmbeddings = await EmbeddingService.getEmbeddings(idealPitch);
+    // Get embeddings for ideal pitch if provided
+    let idealPitchEmbeddings = null;
+    if (idealPitch && idealPitch.trim() !== '') {
+      logger.info(`Generating embeddings for ideal pitch in challenge: ${name}`);
+      idealPitchEmbeddings = await EmbeddingService.getEmbeddings(idealPitch);
+    }
+
+    // Generate embeddings for each evaluation criterion
+    logger.info(`Generating embeddings for ${evaluationCriteria.length} evaluation criteria`);
+    const criteriaWithEmbeddings = await Promise.all(
+      evaluationCriteria.map(async (criteria) => {
+        const embeddings = await EmbeddingService.getEmbeddings(criteria.keyword);
+        return {
+          ...criteria,
+          embeddings
+        };
+      })
+    );
 
     const challenge = new Challenge({
       name,
       description,
       idealPitch,
       idealPitchEmbeddings,
-      evaluationCriteria,
+      evaluationCriteria: criteriaWithEmbeddings,
       createdBy: req.user.id,
     });
 
     await challenge.save();
     res.json(challenge);
   } catch (err) {
-    console.error(err.message);
+    logger.error(`Error creating challenge: ${err.message}`, err);
     res.status(500).send('Server error');
   }
 };
@@ -48,7 +66,7 @@ exports.getChallenges = async (req, res) => {
       .sort({ createdDate: -1 }); // Sort by newest first
     res.json(challenges);
   } catch (err) {
-    console.error(err.message);
+    logger.error(`Error getting challenges: ${err.message}`, err);
     res.status(500).send('Server error');
   }
 };
@@ -66,7 +84,7 @@ exports.getChallengeById = async (req, res) => {
     }
     res.json(challenge);
   } catch (err) {
-    console.error(err.message);
+    logger.error(`Error getting challenge by ID: ${err.message}`, err);
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Challenge not found' });
     }

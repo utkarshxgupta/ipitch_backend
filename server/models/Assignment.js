@@ -6,6 +6,7 @@ const AssignmentSchema = new mongoose.Schema({
   assignedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
+  enableHints: { type: Boolean, default: false },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",

@@ -25,6 +25,7 @@ import {
   ModalFooter,
   useDisclosure,
   useToast,
+  Switch, // Add Switch import
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 
@@ -37,6 +38,7 @@ const AssignmentForm = () => {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [enableHints, setEnableHints] = useState(false); // Add enableHints state
   const toast = useToast();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -107,6 +109,7 @@ const AssignmentForm = () => {
           assignedUsers: selectedUsers,
           startDate,
           endDate,
+          enableHints, // Add enableHints field
         },
         {
           headers: { "x-auth-token": token },
@@ -147,16 +150,29 @@ const AssignmentForm = () => {
     switch(step) {
       case 1:
         return (
-          <FormControl isRequired>
-            <FormLabel>Assignment Name</FormLabel>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter assignment name"
-              size="lg"
-              bg={bgColor}
-            />
-          </FormControl>
+          <VStack spacing={4} align="start" width="100%">
+            <FormControl isRequired>
+              <FormLabel>Assignment Name</FormLabel>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter assignment name"
+                size="lg"
+                bg={bgColor}
+              />
+            </FormControl>
+            <FormControl display="flex" alignItems="center">
+              <FormLabel htmlFor="enable-hints" mb="0">
+                Enable Hints
+              </FormLabel>
+              <Switch 
+                id="enable-hints" 
+                colorScheme="brand"
+                isChecked={enableHints}
+                onChange={(e) => setEnableHints(e.target.checked)}
+              />
+            </FormControl>
+          </VStack>
         );
       
       case 2:
@@ -250,6 +266,10 @@ const AssignmentForm = () => {
       <Box>
         <Text fontWeight="bold">Timeline:</Text>
         <Text>{new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}</Text>
+      </Box>
+      <Box>
+        <Text fontWeight="bold">Hints:</Text>
+        <Text>{enableHints ? "Enabled" : "Disabled"}</Text>
       </Box>
     </VStack>
   );
