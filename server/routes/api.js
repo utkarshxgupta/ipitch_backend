@@ -43,6 +43,10 @@ const {
   getAssignmentProgress,
   updateAssignment,
 } = require("../controllers/assignmentController");
+const {
+  getUserAssignmentProgress,
+  getAssignmentLeaderboard,
+} = require("../controllers/progressController");
 const router = express.Router();
 const multer = require("multer");
 
@@ -178,6 +182,19 @@ router.put(
   auth,
   roleCheck(["manager", "admin"]),
   updateAssignment
+);
+
+// Progress routes
+router.get(
+  "/progress/assignment/:assignmentId",
+  auth,
+  getUserAssignmentProgress
+);
+router.get(
+  "/progress/assignment/:assignmentId/leaderboard",
+  auth,
+  roleCheck(["trainer", "manager", "admin"]),
+  getAssignmentLeaderboard
 );
 
 module.exports = router;

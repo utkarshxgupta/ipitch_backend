@@ -68,6 +68,7 @@ const AssignmentAttempt = () => {
   const [timeRemaining, setTimeRemaining] = useState("");
   const [isLargerThan768] = useMediaQuery("(min-width: 768px)");
   const [submissionsByChallenge, setSubmissionsByChallenge] = useState({});
+  const [progress, setProgress] = useState(null);
 
   const cardBg = useColorModeValue("white", "gray.700");
   const borderColor = useColorModeValue("gray.200", "gray.600");
@@ -96,6 +97,16 @@ const AssignmentAttempt = () => {
         }
       );
       setSubmissions(submissionsRes.data);
+
+      // NEW: Fetch progress data
+      const progressRes = await axios.get(
+        `http://localhost:5000/api/progress/assignment/${id}`,
+        {
+          headers: { "x-auth-token": localStorage.getItem("token") },
+        }
+      );
+      console.log("Progress data:", progressRes.data);
+      setProgress(progressRes.data);
 
       // Group submissions by challenge
       const groupedSubmissions = {};
@@ -153,26 +164,26 @@ const AssignmentAttempt = () => {
     return () => clearInterval(interval);
   }, [assignment]);
 
-  // Calculate which challenges have been attempted
-  const getAttemptedChallenges = () => {
-    if (!submissions.length || !assignment) return new Set();
-    
-    return new Set(
-      submissions.map((submission) => submission.challenge._id)
-    );
-  };
+  // Replace these frontend calculations
+  // const getAttemptedChallenges = () => { ... }
+  // const getCompletionPercentage = () => { ... }
+  // const getBestScore = (challengeId) => { ... }
 
-  // Calculate completion percentage
-  const getCompletionPercentage = () => {
-    if (!assignment) return 0;
-    const attempted = getAttemptedChallenges().size;
-    const total = assignment.challenges.length;
-    return total > 0 ? Math.round((attempted / total) * 100) : 0;
-  };
+  // With data from the server
+  const completionPercentage = progress ? Math.round((progress.completedChallenges / progress.totalChallenges) * 100) : 0;
 
-  // Calculate random best score for each challenge (dummy data as requested)
+  // Get best score for a specific challenge from the server data
   const getBestScore = (challengeId) => {
-    return Math.floor(Math.random() * 41) + 60; // Random score between 60-100
+    if (!progress || !progress.challengeProgress) return 0;
+    const challengeProgress = progress.challengeProgress.find(cp => cp.challenge._id === challengeId);
+    return challengeProgress ? challengeProgress.bestScore : 0;
+  };
+
+  // Get attempts for a challenge
+  const getAttempts = (challengeId) => {
+    if (!progress || !progress.challengeProgress) return 0;
+    const challengeProgress = progress.challengeProgress.find(cp => cp.challenge._id === challengeId);
+    return challengeProgress ? challengeProgress.attempts : 0;
   };
 
   if (loading) {
@@ -196,8 +207,12 @@ const AssignmentAttempt = () => {
     new Date() >= new Date(assignment.startDate) &&
     new Date() <= new Date(assignment.endDate);
 
-  const attemptedChallenges = getAttemptedChallenges();
-  const completionPercentage = getCompletionPercentage();
+  // Fix the undefined property error by adding another check
+  const attemptedChallenges = new Set(
+    progress && progress.challengeProgress 
+      ? progress.challengeProgress.map(cp => cp.challenge._id) 
+      : []
+  );
 
   return (
     <Container maxW="container.xl" py={{ base: 4, md: 8 }}>
@@ -265,7 +280,7 @@ const AssignmentAttempt = () => {
                   </CircularProgress>
                 </Box>
                 <Text fontSize="sm" color="gray.500">
-                  {attemptedChallenges.size} of {assignment.challenges.length} challenges attempted
+                  {progress ? progress.completedChallenges : 0} of {progress ? progress.totalChallenges : 0} challenges completed
                 </Text>
               </VStack>
             </CardBody>
@@ -281,7 +296,7 @@ const AssignmentAttempt = () => {
                   </HStack>
                 </StatLabel>
                 <StatNumber fontSize="3xl" color={accentColor}>
-                  {Math.floor(Math.random() * 21) + 80}/100
+                  {progress ? progress.overallScore/progress.totalChallenges : 0}/100
                 </StatNumber>
                 <StatHelpText>Based on your best submissions</StatHelpText>
               </Stat>
@@ -361,11 +376,11 @@ const AssignmentAttempt = () => {
                       </HStack>
                       
                       <HStack>
-                        {isAttempted && (
+                        {getBestScore(challenge._id) > 0 && (
                           <Tooltip label="Your best score">
                             <Tag size="md" colorScheme="blue" borderRadius="full">
                               <TagLeftIcon boxSize="12px" as={FaChartLine} />
-                              <TagLabel>{bestScore}%</TagLabel>
+                              <TagLabel>{getBestScore(challenge._id)}%</TagLabel>
                             </Tag>
                           </Tooltip>
                         )}

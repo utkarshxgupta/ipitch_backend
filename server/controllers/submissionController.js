@@ -1,6 +1,7 @@
 const Submission = require("../models/Submission");
 const Challenge = require("../models/Challenge");
 const Assignment = require("../models/Assignment");
+const AssignmentProgress = require("../models/AssignmentProgress");
 const StorageService = require("../services/storage");
 const TranscriptionService = require("../services/transcription");
 const SemanticEvaluationService = require("../services/semanticEvaluationService");
@@ -123,19 +124,90 @@ async function performSemanticEvaluation(submissionId, transcript, challenge) {
       );
     }
     
-    // Update submission with evaluation results
+    // Get submission data before updating to use later in progress update
+    const submission = await Submission.findById(submissionId);
+    
+    // Update submission with evaluation results in one operation
     await Submission.findByIdAndUpdate(submissionId, {
-      'automaticEvaluation.score': evaluationResults.score,
-      'automaticEvaluation.details': evaluationResults.details,
-      'automaticEvaluation.rawScore': evaluationResults.rawScore,
-      'automaticEvaluation.maxPossibleScore': evaluationResults.maxPossibleScore,
-      'automaticEvaluation.evaluatedAt': new Date(),
-      'automaticEvaluation.semanticSimilarity': semanticSimilarity
+      'automaticEvaluation': {
+      score: evaluationResults.score,
+      details: evaluationResults.details,
+      rawScore: evaluationResults.rawScore,
+      maxPossibleScore: evaluationResults.maxPossibleScore,
+      evaluatedAt: new Date(),
+      semanticSimilarity
+      }
     });
     
+    // Update assignment progress using full submission data
+    await updateAssignmentProgress(submission, evaluationResults.score);
+
     logger.info(`Semantic evaluation completed for submission: ${submissionId}`);
   } catch (error) {
     logger.error(`Error during background semantic evaluation: ${error.message}`, error);
+  }
+}
+
+// Add to submissionController.js after a submission is saved
+async function updateAssignmentProgress(submission, score) {
+  try {
+    logger.info(`Updating assignment progress for submission: ${submission}`);
+    // Find or create progress record
+    let progress = await AssignmentProgress.findOne({
+      user: submission.trainee,
+      assignment: submission.assignment
+    });
+    
+    if (!progress) {
+      // Create new progress record
+      const assignment = await Assignment.findById(submission.assignment);
+      progress = new AssignmentProgress({
+        user: submission.trainee,
+        assignment: submission.assignment,
+        totalChallenges: assignment.challenges.length,
+        challengeProgress: []
+      });
+    }
+    
+    // Find this challenge in the progress
+    const challengeIndex = progress.challengeProgress.findIndex(
+      cp => cp.challenge.toString() === submission.challenge.toString()
+    );
+    
+    if (challengeIndex === -1) {
+      // First attempt at this challenge
+      progress.challengeProgress.push({
+        challenge: submission.challenge,
+        bestSubmission: submission._id,
+        bestScore: score,
+        attempts: 1,
+        lastAttemptDate: new Date()
+      });
+      progress.completedChallenges += 1;
+    } else {
+      // Update existing challenge progress
+      progress.challengeProgress[challengeIndex].attempts += 1;
+      progress.challengeProgress[challengeIndex].lastAttemptDate = new Date();
+      
+      // Update best score if this submission is better
+      if (score > progress.challengeProgress[challengeIndex].bestScore) {
+        progress.challengeProgress[challengeIndex].bestScore = score;
+        progress.challengeProgress[challengeIndex].bestSubmission = submission._id;
+      }
+    }
+    
+    // Recalculate overall score (sum of best scores)
+    progress.overallScore = progress.challengeProgress.reduce(
+      (sum, cp) => sum + cp.bestScore, 0
+    );
+    
+    progress.lastUpdated = new Date();
+    await progress.save();
+    
+    return progress;
+  } catch (error) {
+    logger.error(`Failed to update assignment progress: ${error.message}`);
+    throw error;
   }
 }
 
