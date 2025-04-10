@@ -12,7 +12,7 @@ const Notifications = () => {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/notifications', {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/notifications`, {
           headers: { 'x-auth-token': token }
         });
         setNotifications(res.data);

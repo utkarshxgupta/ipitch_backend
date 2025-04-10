@@ -163,7 +163,7 @@ const SpeechMetricsDisplay = ({ metrics }) => {
   const bgColor = useColorModeValue("white", "gray.700");
   
   // Comprehensive null checks
-  if (!metrics || !metrics.overallMetrics || !metrics.thresholds) {
+  if (!metrics) {
     return (
       <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
         <Text color="gray.500">Speech analysis data not available</Text>
@@ -172,47 +172,194 @@ const SpeechMetricsDisplay = ({ metrics }) => {
   }
 
   const {
-    averageRate = 0
-  } = metrics.overallMetrics;
+    averageSpeechRate = 0,
+    conversationalSpeechRate = 0,
+    longPauses = 0,
+    speakingTimePercent = 0,
+    pauseDurations = []
+  } = metrics;
 
-  const {
-    slow = 120,
-    optimal = 150,
-    fast = 180
-  } = metrics.thresholds;
-
-  const getRateStatus = (rate) => {
+  // Helper functions for metric evaluation
+  const getSpeechRateStatus = (rate) => {
     if (!rate) return { color: "gray", text: "No Data" };
-    if (rate < slow) return { color: "red", text: "Too Slow" };
-    if (rate > fast) return { color: "yellow", text: "Too Fast" };
-    return { color: "green", text: "Optimal" };
+    if (rate < 120) return { color: "orange", text: "Slow" };
+    if (rate > 180) return { color: "orange", text: "Fast" };
+    return { color: "green", text: "Good" };
   };
 
-  const status = getRateStatus(averageRate);
+  const getSpeakingTimeStatus = (percent) => {
+    if (!percent && percent !== 0) return { color: "gray", text: "No Data" };
+    if (percent < 60) return { color: "orange", text: "Low Talk Time" };
+    if (percent > 90) return { color: "orange", text: "Few Pauses" };
+    return { color: "green", text: "Balanced" };
+  };
+
+  const getLongPausesStatus = (count) => {
+    if (!count && count !== 0) return { color: "gray", text: "No Data" };
+    if (count > 5) return { color: "orange", text: "Many" };
+    return { color: "green", text: "Few" };
+  };
+
+  // Calculate average pause duration
+  const averagePauseDuration = pauseDurations.length 
+    ? pauseDurations.reduce((sum, duration) => sum + duration, 0) / pauseDurations.length
+    : 0;
+
+  // Statuses
+  const avgRateStatus = getSpeechRateStatus(averageSpeechRate);
+  const convRateStatus = getSpeechRateStatus(conversationalSpeechRate);
+  const speakingTimeStatus = getSpeakingTimeStatus(speakingTimePercent);
+  const longPausesStatus = getLongPausesStatus(longPauses);
 
   return (
     <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm" mb={6}>
       <HStack justify="space-between" mb={4}>
         <Heading size="md">Speech Analysis</Heading>
-        <Badge variant="subtle" colorScheme={status.color}>
-          {status.text}
+        <Badge variant="subtle" colorScheme={avgRateStatus.color}>
+          {avgRateStatus.text} Pace
         </Badge>
       </HStack>
       
-      <Box 
-        textAlign="center" 
-        p={4} 
-        borderRadius="md" 
-        bg={`${status.color}.100`}
-        border="1px solid"
-        borderColor={`${status.color}.300`}
-        maxW="300px"
-        mx="auto"
-      >
-        <Text fontWeight="bold" color={`${status.color}.700`}>Speaking Rate</Text>
-        <Text fontSize="3xl">{averageRate ? averageRate.toFixed(0) : '--'}</Text>
-        <Text fontSize="sm" color="gray.600">words per minute</Text>
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={4}>
+        {/* Speech Rate Metrics */}
+        <Box>
+          <Text fontWeight="bold" mb={2}>Speaking Rate</Text>
+          <SimpleGrid columns={2} spacing={4}>
+            <Box 
+              p={3} 
+              borderRadius="md" 
+              bg={`${avgRateStatus.color}.100`}
+              border="1px solid"
+              borderColor={`${avgRateStatus.color}.300`}
+              textAlign="center"
+              _dark={{
+                bg: `${avgRateStatus.color}.900`,
+                borderColor: `${avgRateStatus.color}.700`,
+              }}
+            >
+              <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.300" }}>Average</Text>
+              <Text fontSize="2xl" fontWeight="bold">{averageSpeechRate ? averageSpeechRate.toFixed(0) : '--'}</Text>
+              <Text fontSize="xs" color="gray.500" _dark={{ color: "gray.400" }}>words per minute</Text>
+            </Box>
+            
+            <Box 
+              p={3} 
+              borderRadius="md" 
+              bg={`${convRateStatus.color}.100`}
+              border="1px solid"
+              borderColor={`${convRateStatus.color}.300`}
+              textAlign="center"
+              _dark={{
+                bg: `${convRateStatus.color}.900`,
+                borderColor: `${convRateStatus.color}.700`,
+              }}
+            >
+              <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.300" }}>Conversational</Text>
+              <Text fontSize="2xl" fontWeight="bold">{conversationalSpeechRate ? conversationalSpeechRate.toFixed(0) : '--'}</Text>
+              <Text fontSize="xs" color="gray.500" _dark={{ color: "gray.400" }}>words per minute</Text>
+            </Box>
+          </SimpleGrid>
+        </Box>
+        
+        {/* Speaking Time */}
+        <Box>
+          <Text fontWeight="bold" mb={2}>Speaking Time</Text>
+          <Box 
+            p={3} 
+            borderRadius="md" 
+            bg={`${speakingTimeStatus.color}.100`}
+            border="1px solid"
+            borderColor={`${speakingTimeStatus.color}.300`}
+            _dark={{
+              bg: `${speakingTimeStatus.color}.900`,
+              borderColor: `${speakingTimeStatus.color}.700`,
+            }}
+          >
+            <HStack justify="space-between" mb={1}>
+              <Text fontSize="sm">Speaking vs Pausing</Text>
+              <Text fontWeight="medium">{speakingTimePercent ? speakingTimePercent.toFixed(0) : '--'}%</Text>
+            </HStack>
+            <Box w="100%" h="8px" bg="gray.200" borderRadius="full" overflow="hidden" _dark={{ bg: "gray.600" }}>
+              <Box 
+                h="100%" 
+                w={`${speakingTimePercent}%`} 
+                bg={`${speakingTimeStatus.color}.500`} 
+                borderRadius="full"
+              />
+            </Box>
+            <HStack justify="space-between" mt={1}>
+              <Text fontSize="xs" color="gray.500" _dark={{ color: "gray.400" }}>0%</Text>
+              <Text fontSize="xs" color="gray.500" _dark={{ color: "gray.400" }}>100%</Text>
+            </HStack>
+          </Box>
+        </Box>
+      </SimpleGrid>
+      
+      {/* Pauses Section */}
+      <Box mt={4}>
+        <Text fontWeight="bold" mb={2}>Pauses Analysis</Text>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          <Box 
+            p={3} 
+            borderRadius="md" 
+            bg={`${longPausesStatus.color}.100`}
+            border="1px solid"
+            borderColor={`${longPausesStatus.color}.300`}
+            _dark={{
+              bg: `${longPausesStatus.color}.900`,
+              borderColor: `${longPausesStatus.color}.700`,
+            }}
+          >
+            <HStack justify="space-between">
+              <Text>Long Pauses</Text>
+              <Badge colorScheme={longPausesStatus.color}>{longPauses || 0}</Badge>
+            </HStack>
+            <Text fontSize="xs" mt={1} color="gray.500" _dark={{ color: "gray.400" }}>Extended pauses detected during the speech</Text>
+          </Box>
+          
+          <Box 
+            p={3} 
+            borderRadius="md" 
+            bg="gray.100"
+            border="1px solid"
+            borderColor="gray.300"
+            _dark={{
+              bg: "gray.700",
+              borderColor: "gray.600",
+            }}
+          >
+            <HStack justify="space-between">
+              <Text>Avg Pause Duration</Text>
+              <Text fontWeight="bold">{averagePauseDuration.toFixed(1)}s</Text>
+            </HStack>
+            <Text fontSize="xs" mt={1} color="gray.500" _dark={{ color: "gray.400" }}>Average length of pauses in seconds</Text>
+          </Box>
+        </SimpleGrid>
       </Box>
+      
+      {/* Pause Duration Visualization */}
+      {pauseDurations.length > 0 && (
+        <Box mt={4} p={3} borderRadius="md" border="1px solid" borderColor="gray.200" _dark={{ borderColor: "gray.600" }}>
+          <Text fontWeight="bold" mb={2}>Pause Pattern</Text>
+          <HStack h="40px" spacing={1} align="flex-end">
+            {pauseDurations.map((duration, index) => {
+              const height = Math.min(Math.max(duration * 10, 5), 40); // Scale for visualization
+              return (
+                <Box 
+                  key={index} 
+                  h={`${height}px`} 
+                  w="full" 
+                  bg={duration > 2 ? "orange.400" : "blue.400"}
+                  borderRadius="sm"
+                />
+              );
+            })}
+          </HStack>
+          <Text fontSize="xs" mt={1} color="gray.500" _dark={{ color: "gray.400" }}>
+            Each bar represents a pause (orange for long pauses {'>'}2s)
+          </Text>
+        </Box>
+      )}
     </Box>
   );
 };
@@ -279,7 +426,7 @@ const EvaluationForm = ({ submissionId, onEvaluationAdded }) => {
     e.preventDefault();
     try {
       const response = await axios.post(
-        `http://localhost:5000/api/submissions/${submissionId}/evaluate`,
+        `${process.env.REACT_APP_API_URL}/api/submissions/${submissionId}/evaluate`,
         { score, feedback },
         { headers: { "x-auth-token": token } }
       );
@@ -389,7 +536,7 @@ const SubmissionDetail = () => {
   const fetchSubmission = async () => {
     try {
       const response = await axios.get(
-        `http://localhost:5000/api/submissions/${id}`,
+        `${process.env.REACT_APP_API_URL}/api/submissions/${id}`,
         {
           headers: { "x-auth-token": token },
         }
@@ -418,7 +565,7 @@ const SubmissionDetail = () => {
   const handleAddComment = async () => {
     try {
       const res = await axios.post(
-        `http://localhost:5000/api/submissions/${submission._id}/comment`,
+        `${process.env.REACT_APP_API_URL}/api/submissions/${submission._id}/comment`,
         { text: commentText },
         { headers: { "x-auth-token": token } }
       );

@@ -45,7 +45,7 @@ const ManageSubmissions = () => {
     setLoading(true);
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/submissions?${
+        `${process.env.REACT_APP_API_URL}/api/submissions?${
           traineeId ? `traineeId=${traineeId}&` : ''
         }${!reset && lastId ? `lastId=${lastId}&` : ''}limit=10`,
         { headers: { "x-auth-token": token } }
@@ -89,7 +89,7 @@ const ManageSubmissions = () => {
   const handleLoadMoreForAssignment = async (assignmentId, lastSubmissionId) => {
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/submissions?${
+        `${process.env.REACT_APP_API_URL}/api/submissions?${
           traineeId ? `traineeId=${traineeId}&` : ''
         }assignmentId=${assignmentId}&lastId=${lastSubmissionId}&limit=10`,
         { headers: { "x-auth-token": token } }

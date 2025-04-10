@@ -51,7 +51,7 @@ const Profile = () => {
       headers: { 'x-auth-token': token },
     };
     try {
-      const res = await axios.put('http://localhost:5000/api/auth/update', formData, config);
+      const res = await axios.put(`${process.env.REACT_APP_API_URL}/api/auth/update`, formData, config);
       toast({
         title: 'Profile updated successfully',
         status: 'success',

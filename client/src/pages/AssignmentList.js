@@ -13,7 +13,7 @@ const AssignmentList = () => {
     const fetchAssignments = async () => {
       try {
         const response = await axios.get(
-          "http://localhost:5000/api/assignments",
+          `${process.env.REACT_APP_API_URL}/api/assignments`,
           { headers: { "x-auth-token": localStorage.getItem("token") } }
         );
         const sortedAssignments = response.data.sort(

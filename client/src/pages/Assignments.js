@@ -13,7 +13,7 @@ const Assignments = () => {
   useEffect(() => {
     const fetchAssignments = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/assignments/user', {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/assignments/user`, {
           headers: { 'x-auth-token': token }
         });
         setAssignments(res.data);
@@ -57,7 +57,7 @@ const Assignments = () => {
             subheading={"Created on " + new Date(assignment.createdAt).toLocaleDateString()}
             badgeText={isActive(assignment.startDate, assignment.endDate) ? "Active" : "Inactive"}
             badgeColor={isActive(assignment.startDate, assignment.endDate) ? "green" : "red"}
-            link={`/assignments/${assignment._id}`}
+            link={`/assignments/${assignment._id}/new`}
           />
         ))}
       </List>

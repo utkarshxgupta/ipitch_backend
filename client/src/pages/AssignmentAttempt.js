@@ -76,13 +76,14 @@ const AssignmentAttempt = () => {
   const accentColor = useColorModeValue("brand.500", "brand.300");
   const progressTrackColor = useColorModeValue("gray.100", "gray.700");
   const progressFilledColor = useColorModeValue("green.400", "green.300");
+  const infoBgColor = useColorModeValue("gray.50", "gray.800");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch assignment data
       const assignmentRes = await axios.get(
-        `http://localhost:5000/api/assignments/${id}`,
+        `${process.env.REACT_APP_API_URL}/api/assignments/${id}`,
         {
           headers: { "x-auth-token": localStorage.getItem("token") },
         }
@@ -91,7 +92,7 @@ const AssignmentAttempt = () => {
 
       // Fetch submissions data
       const submissionsRes = await axios.get(
-        `http://localhost:5000/api/submissions/user/assignment/${id}`,
+        `${process.env.REACT_APP_API_URL}/api/submissions/user/assignment/${id}`,
         {
           headers: { "x-auth-token": localStorage.getItem("token") },
         }
@@ -100,7 +101,7 @@ const AssignmentAttempt = () => {
 
       // NEW: Fetch progress data
       const progressRes = await axios.get(
-        `http://localhost:5000/api/progress/assignment/${id}`,
+        `${process.env.REACT_APP_API_URL}/api/progress/assignment/${id}`,
         {
           headers: { "x-auth-token": localStorage.getItem("token") },
         }
@@ -214,112 +215,161 @@ const AssignmentAttempt = () => {
       : []
   );
 
+  // Format date to DD Month 'YY
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      day: '2-digit',
+      month: 'short',
+      year: '2-digit'
+    });
+  };
+
   return (
     <Container maxW="container.xl" py={{ base: 4, md: 8 }}>
       <VStack spacing={6} align="stretch">
-        {/* Header Section */}
-        <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">
-          <CardHeader pb={0}>
-            <Flex direction={{ base: "column", md: "row" }} justify="space-between" align={{ base: "flex-start", md: "center" }} wrap="wrap" gap={2}>
-              <Heading size="lg" color={accentColor}>{assignment.name}</Heading>
-              <HStack spacing={2}>
+        {/* Header Section - Redesigned */}
+        <Card 
+          bg={cardBg} 
+          shadow="md" 
+          borderRadius="lg" 
+          overflow="hidden"
+          borderLeft={isActive ? "4px solid" : "none"}
+          borderLeftColor={isActive ? "green.400" : "none"}
+        >
+          <CardBody py={4}>
+            <VStack spacing={4} align="stretch">
+              {/* Title Row */}
+              <Flex 
+                direction={{ base: "column", md: "row" }} 
+                justify="space-between" 
+                align={{ base: "flex-start", md: "center" }} 
+                gap={3}
+              >
+                <Heading size="lg" color={accentColor}>{assignment.name}</Heading>
                 <Badge
                   colorScheme={isActive ? "green" : "red"}
                   p={2}
                   borderRadius="full"
                   fontSize="sm"
+                  variant="solid"
                 >
                   {isActive ? "Active" : "Inactive"}
                 </Badge>
-                {isActive && (
-                  <Tag size="md" variant="subtle" colorScheme="blue" borderRadius="full">
-                    <TagLeftIcon as={FaClock} />
-                    <TagLabel>{timeRemaining}</TagLabel>
-                  </Tag>
-                )}
-              </HStack>
-            </Flex>
-          </CardHeader>
-          <CardBody>
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
-              <HStack>
-                <Icon as={FaCalendar} color={accentColor} />
-                <Text fontWeight="medium">
-                  Starts: {new Date(assignment.startDate).toLocaleDateString()}
-                </Text>
-              </HStack>
-              <HStack>
-                <Icon as={FaCalendar} color={accentColor} />
-                <Text fontWeight="medium">
-                  Ends: {new Date(assignment.endDate).toLocaleDateString()}
-                </Text>
-              </HStack>
-              <HStack>
-                <Icon as={FaUser} color={accentColor} />
-                <Text fontWeight="medium">By: {assignment.createdBy.name}</Text>
-              </HStack>
-            </SimpleGrid>
+              </Flex>
+              
+              {/* Time Remaining - More Visible */}
+              {isActive && (
+                <Flex 
+                  bg="blue.50" 
+                  color="blue.700" 
+                  p={3} 
+                  borderRadius="md" 
+                  align="center"
+                  justify="center"
+                  fontWeight="bold"
+                  fontSize="lg"
+                  borderWidth="1px"
+                  borderColor="blue.200"
+                >
+                  <Icon as={FaClock} mr={2} />
+                  Time Remaining: {timeRemaining}
+                </Flex>
+              )}
+              
+              {/* Info Row */}
+              <Flex 
+                direction={{ base: "column", sm: "row" }} 
+                align="flex-start"
+                gap={4} 
+                bg={infoBgColor}
+                p={3}
+                borderRadius="md"
+              >
+                <HStack spacing={2}>
+                  <Icon as={FaCalendar} color={accentColor} boxSize={4} />
+                  <Text fontWeight="medium" fontSize="sm">
+                    {formatDate(assignment.startDate)} - {formatDate(assignment.endDate)}
+                  </Text>
+                </HStack>
+                <Spacer />
+                <HStack spacing={2}>
+                  <Icon as={FaUser} color={accentColor} boxSize={4} />
+                  <Text fontWeight="medium" fontSize="sm">
+                    Created by {assignment.createdBy.name}
+                  </Text>
+                </HStack>
+              </Flex>
+
+              {/* Progress Metrics Row - Redesigned without redundant challenges card */}
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mt={2}>
+                {/* Progress Card - Enhanced with combined info */}
+                <Flex 
+                  bg={infoBgColor} 
+                  p={4} 
+                  borderRadius="md" 
+                  direction="column" 
+                  align="stretch" 
+                >
+                  <Flex justify="space-between" align="center" mb={2}>
+                    <HStack>
+                      <Icon as={FaChartLine} color={accentColor} boxSize={5} />
+                      <Text fontSize="md" fontWeight="bold">CHALLENGE PROGRESS</Text>
+                    </HStack>
+                    <Text fontWeight="bold" fontSize="xl" color={accentColor}>
+                      {completionPercentage}%
+                    </Text>
+                  </Flex>
+                  <Progress 
+                    value={completionPercentage} 
+                    size="sm" 
+                    colorScheme="green" 
+                    borderRadius="full"
+                    mb={3}
+                  />
+                  <Flex justify="space-between">
+                    <Text fontWeight="medium" fontSize="sm">
+                      {progress ? progress.completedChallenges : 0}/{progress ? progress.totalChallenges : 0} challenges completed
+                    </Text>
+                    <Text fontWeight="medium" fontSize="sm">
+                      {attemptedChallenges.size} attempted
+                    </Text>
+                  </Flex>
+                </Flex>
+
+                {/* Score Card - Enhanced */}
+                <Flex 
+                  bg={infoBgColor} 
+                  p={4} 
+                  borderRadius="md" 
+                  direction="row" 
+                  align="center" 
+                  justify="space-between"
+                >
+                  <VStack align="flex-start" spacing={1}>
+                    <HStack>
+                      <Icon as={FaTrophy} color="gold" boxSize={5} />
+                      <Text fontSize="md" fontWeight="bold">PERFORMANCE</Text>
+                    </HStack>
+                    <Text fontSize="sm">Average Score</Text>
+                    <Text fontWeight="bold" fontSize="xl" color={accentColor}>
+                      {progress ? Math.round(progress.overallScore/progress.totalChallenges) : 0}/100
+                    </Text>
+                  </VStack>
+                  <CircularProgress 
+                    value={progress ? Math.round(progress.overallScore/progress.totalChallenges) : 0} 
+                    color="green.400" 
+                    size="80px"
+                  >
+                    <CircularProgressLabel fontWeight="bold">
+                      {progress ? Math.round(progress.overallScore/progress.totalChallenges) : 0}%
+                    </CircularProgressLabel>
+                  </CircularProgress>
+                </Flex>
+              </SimpleGrid>
+            </VStack>
           </CardBody>
         </Card>
-
-        {/* Progress Summary */}
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={5}>
-          <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">
-            <CardBody>
-              <VStack>
-                <Heading size="sm" textAlign="center">Overall Progress</Heading>
-                <Box position="relative" mb={2} w="120px" h="120px">
-                  <CircularProgress 
-                    value={completionPercentage} 
-                    size="120px" 
-                    thickness="8px"
-                    color={progressFilledColor}
-                    trackColor={progressTrackColor}
-                  >
-                    <CircularProgressLabel fontWeight="bold" fontSize="xl">{completionPercentage}%</CircularProgressLabel>
-                  </CircularProgress>
-                </Box>
-                <Text fontSize="sm" color="gray.500">
-                  {progress ? progress.completedChallenges : 0} of {progress ? progress.totalChallenges : 0} challenges completed
-                </Text>
-              </VStack>
-            </CardBody>
-          </Card>
-
-          <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">
-            <CardBody>
-              <Stat>
-                <StatLabel>
-                  <HStack>
-                    <Icon as={FaTrophy} color="gold" />
-                    <Text>Assignment Score</Text>
-                  </HStack>
-                </StatLabel>
-                <StatNumber fontSize="3xl" color={accentColor}>
-                  {progress ? progress.overallScore/progress.totalChallenges : 0}/100
-                </StatNumber>
-                <StatHelpText>Based on your best submissions</StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-
-          <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">
-            <CardBody>
-              <Stat>
-                <StatLabel>
-                  <HStack>
-                    <Icon as={FaMedal} color="bronze" />
-                    <Text>Time Spent</Text>
-                  </HStack>
-                </StatLabel>
-                <StatNumber fontSize="3xl" color={accentColor}>
-                  {Math.floor(Math.random() * 6) + 2}h {Math.floor(Math.random() * 60)}m
-                </StatNumber>
-                <StatHelpText>Total time on challenges</StatHelpText>
-              </Stat>
-            </CardBody>
-          </Card>
-        </SimpleGrid>
 
         {/* Challenges Section */}
         <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">

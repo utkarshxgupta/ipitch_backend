@@ -13,7 +13,7 @@ const EvaluationForm = ({ submissionId, onEvaluation }) => {
     e.preventDefault();
     try {
       const res = await axios.post(
-        `http://localhost:5000/api/submissions/${submissionId}/evaluate`,
+        `${process.env.REACT_APP_API_URL}/api/submissions/${submissionId}/evaluate`,
         { score, feedback },
         { headers: { 'x-auth-token': token } }
       );

@@ -59,7 +59,7 @@ const AdminDashboard = () => {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/users", {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/admin/users`, {
         headers: { "x-auth-token": token },
       });
       setUsers(res.data);
@@ -73,7 +73,7 @@ const AdminDashboard = () => {
   const toggleUserStatus = async (userId, currentStatus) => {
     try {
       await axios.put(
-        `http://localhost:5000/api/admin/users/${userId}`,
+        `${process.env.REACT_APP_API_URL}/api/admin/users/${userId}`,
         { isActive: !currentStatus },
         { headers: { "x-auth-token": token } }
       );

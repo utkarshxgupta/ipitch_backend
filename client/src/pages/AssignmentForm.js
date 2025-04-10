@@ -50,10 +50,10 @@ const AssignmentForm = () => {
     const fetchInitialData = async () => {
       try {
         const [challengesResponse, usersResponse] = await Promise.all([
-          axios.get('http://localhost:5000/api/challenges', {
+          axios.get(`${process.env.REACT_APP_API_URL}/api/challenges`, {
             headers: { 'x-auth-token': token }
           }),
-          axios.get('http://localhost:5000/api/auth/users', {
+          axios.get(`${process.env.REACT_APP_API_URL}/api/auth/users`, {
             headers: { 'x-auth-token': token }
           })
         ]);
@@ -102,7 +102,7 @@ const AssignmentForm = () => {
 
     try {
       await axios.post(
-        "http://localhost:5000/api/assignments",
+        `${process.env.REACT_APP_API_URL}/api/assignments`,
         {
           name,
           challenges: selectedChallenges,

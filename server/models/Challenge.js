@@ -12,6 +12,7 @@ const ChallengeSchema = new mongoose.Schema({
   }],
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   createdDate: { type: Date, default: Date.now },
+  attempts: { type: Number, default: 0 } // New field with default value 0
 });
 
 module.exports = mongoose.model('Challenge', ChallengeSchema);

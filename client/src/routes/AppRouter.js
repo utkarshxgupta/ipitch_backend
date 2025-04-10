@@ -26,6 +26,7 @@ import RoleRoute from "./RoleRoute"; // A new role-based route component
 import { AuthProvider } from "../context/authContext";
 import AssignmentAttempt from "../pages/AssignmentAttempt";
 import ChallengeAttempt from "../pages/ChallengeAttempt";
+import EditChallenge from "../pages/EditChallenge"; // Import the EditChallenge component
 
 const AppRouter = () => {
   return (
@@ -88,6 +89,7 @@ const AppRouter = () => {
           <Route path="/challenges/create" element={<PrivateRoute element={<ChallengeForm />} />} />
           <Route path="/challenges/:id" element={<ChallengeDetail />} />
           <Route path="/challenges/:id/new" element={<ChallengeAttempt />} />
+          <Route path="/challenges/edit/:id" element={<EditChallenge />} />
           <Route
             path="/submissions/challenge/:id"
             element={<PrivateRoute element={<SubmissionList />} />}

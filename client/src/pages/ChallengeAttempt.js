@@ -15,8 +15,6 @@ import {
   Spinner,
   Progress,
   useDisclosure,
-  Alert,
-  AlertIcon,
   AlertDialog,
   AlertDialogBody,
   AlertDialogFooter,
@@ -26,7 +24,6 @@ import {
   Collapse,
   List,
   ListItem,
-  ListIcon,
   Badge,
   Tooltip,
   useToast,
@@ -40,14 +37,12 @@ import {
   FaStop,
   FaMicrophone,
   FaLightbulb,
-  FaTimes,
-  FaChevronLeft,
   FaChevronDown,
   FaChevronRight,
   FaCheckCircle,
   FaExclamationCircle,
-  FaInfoCircle,
   FaArrowLeft,
+  FaRedo,
 } from "react-icons/fa";
 
 const ChallengeAttempt = () => {
@@ -76,6 +71,7 @@ const ChallengeAttempt = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [finalTranscript, setFinalTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
+  const [transcriptTimestamps, setTranscriptTimestamps] = useState([]);
   
   // UI states
   const [showHints, setShowHints] = useState(true);
@@ -88,6 +84,8 @@ const ChallengeAttempt = () => {
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
   const chunksRef = useRef([]);
+  const lastActivityTimerRef = useRef(null);
+  const lastTranscriptUpdateRef = useRef(Date.now());
 
   // Alert dialog for exit confirmation
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -104,7 +102,7 @@ const ChallengeAttempt = () => {
     const fetchChallenge = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:5000/api/challenges/${id}`,
+          `${process.env.REACT_APP_API_URL}/api/challenges/${id}`,
           {
             headers: { "x-auth-token": token },
           }
@@ -115,7 +113,7 @@ const ChallengeAttempt = () => {
         if (assignmentId) {
           try {
             const progressRes = await axios.get(
-              `http://localhost:5000/api/assignments/${assignmentId}/progress`,
+              `${process.env.REACT_APP_API_URL}/api/assignments/${assignmentId}/progress`,
               { headers: { "x-auth-token": token } }
             );
             
@@ -166,6 +164,18 @@ const ChallengeAttempt = () => {
         duration: 5000,
         isClosable: true,
       });
+      
+      // Add confirmation dialog
+      if (window.confirm("Your browser doesn't support speech recognition. Would you like to use the alternative submission method?")) {
+        navigate(`/challenges/${challenge?._id}`, {
+          state: {
+            assignmentId: assignmentId,
+            assignmentActive: assignmentActive,
+            enableHints: enableHints,
+          },
+        });
+      }
+      
       return false;
     }
     
@@ -174,32 +184,72 @@ const ChallengeAttempt = () => {
     recognition.interimResults = true;
     recognition.lang = 'en-IN';
     
+    // Track start time of recognition
+    const recognitionStartTime = Date.now() / 1000;
+    
+    // Track appearance timestamps for interim results
+    const interimStartTimes = new Map();
+    let currentInterimId = 0;
+    
+    // Add state for tracking last activity time
+    const lastActivityRef = { current: Date.now() };
+    let restartAttempts = 0;
+    const MAX_RESTART_ATTEMPTS = 5;
+    let inactivityTimer = null;
+
     recognition.onresult = (event) => {
+      // Reset inactivity tracking on new results
+      lastActivityRef.current = Date.now();
+      restartAttempts = 0;
+      
       let currentInterim = '';
       let newFinal = '';
       
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
+        const resultId = `${i}-${currentInterimId}`;
+        
+        // Track interim result start times
+        if (!interimStartTimes.has(resultId)) {
+          interimStartTimes.set(resultId, Date.now() / 1000 - recognitionStartTime);
+        }
+        
         if (event.results[i].isFinal) {
           newFinal += transcript + ' ';
+          
+          // Only add timestamp once with the more accurate timing
+          const startTime = interimStartTimes.get(resultId) || (Date.now() / 1000 - recognitionStartTime - 1);
+          const endTime = Date.now() / 1000 - recognitionStartTime;
+          
+          setTranscriptTimestamps(prev => [
+            ...prev,
+            {
+              words: transcript,
+              timeStart: startTime, 
+              timeEnd: endTime
+            }
+          ]);
+          
+          // Clean up the map
+          interimStartTimes.delete(resultId);
+          currentInterimId++;
         } else {
           currentInterim += transcript;
         }
       }
       
+      // Use functional updates to avoid state closure issues
       setFinalTranscript(prevFinal => {
         const updatedFinal = newFinal ? prevFinal + newFinal : prevFinal;
         
+        // Use batch updates pattern
         setInterimTranscript(currentInterim);
-        
-        // Use the updated values directly here
-        const combinedTranscript = updatedFinal + currentInterim;
-        setTranscript(combinedTranscript);
+        setTranscript(updatedFinal + currentInterim);
         
         return updatedFinal;
       });
       
-      // Auto-scroll to bottom (keep this outside)
+      // Auto-scroll to bottom
       if (transcriptContainerRef.current) {
         transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
       }
@@ -207,37 +257,173 @@ const ChallengeAttempt = () => {
     
     recognition.onerror = (event) => {
       console.error('Speech recognition error', event.error);
-      if (event.error === 'not-allowed') {
-        toast({
-          title: "Microphone Access Denied",
-          description: "Please allow microphone access for transcription",
-          status: "error",
-          duration: 5000,
-          isClosable: true,
-        });
+      
+      // Enhanced error handling for different error types
+      switch(event.error) {
+        case 'not-allowed':
+          toast({
+            title: "Microphone Access Denied",
+            description: "Please allow microphone access for transcription",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+          break;
+        
+        case 'network':
+          toast({
+            title: "Network Error",
+            description: "Speech recognition service is unavailable",
+            status: "warning",
+            duration: 3000,
+            isClosable: true,
+          });
+          break;
+          
+        case 'no-speech':
+          console.log("No speech detected, continuing...");
+          // This is fairly normal, no need to alert the user
+          break;
+          
+        case 'audio-capture':
+          toast({
+            title: "Audio System Error",
+            description: "There's a problem with your microphone",
+            status: "warning",
+            duration: 3000,
+            isClosable: true,
+          });
+          break;
+          
+        case 'aborted':
+          // Only show if not caused by our own code
+          if (restartAttempts === 0) {
+            console.log("Recognition was aborted");
+          }
+          break;
+          
+        default:
+          console.log(`Unhandled speech recognition error: ${event.error}`);
       }
     };
     
     recognition.onend = () => {
-      // Check the current state of mediaRecorder instead of relying on isRecording
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-        console.log("Speech recognition ended, restarting because still recording...");
-        // Add a small delay before restarting to prevent rapid restart loops
-        setTimeout(() => {
-          try {
-            recognition.start();
-          } catch (err) {
-            console.error("Error restarting speech recognition:", err);
-          }
-        }, 300);
-      } else {
-        setIsTranscribing(false);
+      clearTimeout(inactivityTimer);
+      
+      // Check both isRecording AND isTranscribing 
+      if (isRecording && isTranscribing) {
+        // Increment restart attempt counter
+        restartAttempts++;
+        
+        // Use progressively longer delays for restart attempts
+        const delayMs = Math.min(300 * Math.pow(1.5, restartAttempts - 1), 2000);
+        
+        // Limit maximum restart attempts
+        if (restartAttempts <= MAX_RESTART_ATTEMPTS) {
+          console.log(`Restarting speech recognition (attempt ${restartAttempts}/${MAX_RESTART_ATTEMPTS}) after ${delayMs}ms`);
+          
+          setTimeout(() => {
+            try {
+              recognition.start();
+            } catch (err) {
+              console.error(`Failed to restart speech recognition (attempt ${restartAttempts}):`, err);
+              
+              // If we've reached maximum attempts, stop trying
+              if (restartAttempts >= MAX_RESTART_ATTEMPTS) {
+                console.error("Maximum restart attempts reached. Giving up.");
+                setIsTranscribing(false);
+                
+                toast({
+                  title: "Transcription Error",
+                  description: "Speech recognition failed to restart. Try refreshing the page.",
+                  status: "error",
+                  duration: 5000,
+                  isClosable: true,
+                });
+              }
+            }
+          }, delayMs);
+        } else {
+          setIsTranscribing(false);
+        }
       }
     };
     
+    // Add inactivity detection
+    inactivityTimer = setInterval(() => {
+      // If no transcription activity for 8 seconds while recording
+      if (isRecording && Date.now() - lastActivityRef.current > 8000) {
+        console.log("Detected inactive transcription, attempting to restart");
+        try {
+          recognition.stop();
+          // onend handler will restart it
+        } catch (err) {
+          console.error("Error stopping inactive recognition:", err);
+        }
+        lastActivityRef.current = Date.now(); // Reset to avoid multiple restarts
+      }
+    }, 4000); // Check every 4 seconds
+    
     recognitionRef.current = recognition;
-    return true;
-  }, [toast]);
+    return { recognition, lastActivityRef, inactivityTimer };
+  }, [toast, navigate, challenge?._id, assignmentId, assignmentActive, enableHints, isRecording]);
+
+  // Add this as a separate function in your component
+  const restartTranscription = useCallback(async () => {
+    console.log("Attempting to restart transcription...");
+    
+    // First, clean up existing recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {
+        console.error("Error stopping stalled recognition:", err);
+      }
+      
+      // Set a flag to indicate we're in restart process
+      const isRestartingTranscription = true;
+      
+      // Small delay to let browser clean up resources
+      setTimeout(async () => {
+        try {
+          // Create new recognition instance rather than reusing
+          const newRecognition = initializeSpeechRecognition();
+          
+          if (newRecognition) {
+            // Visual feedback that we're restarting
+            toast({
+              title: "Restarting transcription",
+              description: "Speech recognition is being restarted",
+              status: "info",
+              duration: 2000,
+              isClosable: true,
+            });
+            
+            try {
+              newRecognition.recognition.start();
+              console.log("Successfully started new recognition instance");
+              setIsTranscribing(true);
+            } catch (err) {
+              console.error("Failed to start new recognition instance:", err);
+              setIsTranscribing(false);
+              
+              // Show user a manual restart option
+              toast({
+                title: "Transcription Error",
+                description: "Speech recognition failed to restart automatically. Tap the microphone icon to resume.",
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Error in restart process:", err);
+          setIsTranscribing(false);
+        }
+      }, 800); // Longer delay to ensure proper cleanup
+    }
+  }, [initializeSpeechRecognition, toast]);
 
   // Start recording process
   const startRecording = async () => {
@@ -351,9 +537,15 @@ const ChallengeAttempt = () => {
     // Clear previous recording data
     chunksRef.current = [];
     setRecordingTime(0);
-    setTranscript("");
-    setFinalTranscript(""); // Reset final transcript
-    setInterimTranscript(""); // Reset interim transcript
+
+    // Only reset transcript when starting a completely new recording
+    // (not during auto-restarts by the recognition service)
+    if (!isRecording) {
+      setTranscript("");
+      setFinalTranscript(""); 
+      setInterimTranscript("");
+      setTranscriptTimestamps([]);
+    }
     
     console.log("Setting up MediaRecorder...");
     
@@ -367,7 +559,7 @@ const ChallengeAttempt = () => {
       
       // Set up data collection - use frequent timeslices to avoid missing data
       mediaRecorderRef.current.ondataavailable = (e) => {
-        console.log("Data available, chunk size:", e.data?.size);
+        // console.log("Data available, chunk size:", e.data?.size);
         if (e.data && e.data.size > 0) {
           chunksRef.current.push(e.data);
         }
@@ -438,7 +630,25 @@ const ChallengeAttempt = () => {
       // Start transcription if available
       if (recognitionAvailable) {
         setIsTranscribing(true);
-        recognitionRef.current.start();
+        const { recognition, lastActivityRef } = recognitionAvailable;
+        
+        // Store last activity ref for monitoring - use existing ref instead of creating new one
+        lastActivityTimerRef.current = lastActivityRef;
+        
+        try {
+          recognition.start();
+        } catch (err) {
+          console.error("Failed to start speech recognition:", err);
+          setIsTranscribing(false);
+          
+          toast({
+            title: "Transcription Error",
+            description: "Could not start speech recognition. Your transcript may be incomplete.",
+            status: "warning",
+            duration: 5000,
+            isClosable: true,
+          });
+        }
       }
     } catch (err) {
       console.error("Failed to start recording:", err);
@@ -452,9 +662,12 @@ const ChallengeAttempt = () => {
     }
   };
 
-  // Stop recording
   const stopRecording = () => {
     console.log("Stopping recording...");
+    
+    // Immediately set state to prevent recognition restart
+    setIsRecording(false);
+    setIsTranscribing(false);
     
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       try {
@@ -496,6 +709,9 @@ const ChallengeAttempt = () => {
     setUploadProgress(0);
     
     try {
+      // Calculate speech metrics using timestamps
+      const speechMetrics = calculateSpeechMetrics(transcript, recordingTime, transcriptTimestamps);
+      
       // Create a file from blob
       const fileName = `pitch_${id}_${Date.now()}.webm`;
       const videoFile = new File([recordedBlob], fileName, { type: 'video/webm' });
@@ -504,10 +720,24 @@ const ChallengeAttempt = () => {
       formData.append('video', videoFile);
       formData.append('challengeId', id);
       formData.append('assignmentId', assignmentId);
-      formData.append('transcript', transcript); // Send the transcript directly
+      formData.append('transcript', transcript);
       
+      // Add speech metrics to the form data
+      formData.append('averageSpeechRate', speechMetrics.averageSpeechRate);
+      formData.append('conversationalSpeechRate', speechMetrics.conversationalSpeechRate);
+      formData.append('longPauses', speechMetrics.longPauses);
+      formData.append('speakingTimePercent', speechMetrics.speakingTimePercent);
+      // Convert pause durations array to string to send in form data
+      if (speechMetrics.pauseDurations && speechMetrics.pauseDurations.length > 0) {
+        formData.append('pauseDurations', JSON.stringify(speechMetrics.pauseDurations));
+      } else {
+        formData.append('pauseDurations', JSON.stringify([]));
+      }
+      console.log("Submitting form data:", formData);
+      console.log("Token:", token.substring(0, 10) + "...");
+      console.log("AssignmentId:", assignmentId);
       const response = await axios.post(
-        'http://localhost:5000/api/submissions',
+        `${process.env.REACT_APP_API_URL}/api/submissions`,
         formData,
         {
           headers: { 
@@ -587,6 +817,11 @@ const ChallengeAttempt = () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+
+      // Clear any remaining inactivity timers
+      if (recognitionRef.current && recognitionRef.current.inactivityTimer) {
+        clearInterval(recognitionRef.current.inactivityTimer);
+      }
     };
   }, []);
 
@@ -610,6 +845,201 @@ const ChallengeAttempt = () => {
       setShowHints(true);
     }
   }, [enableHints]);
+
+  // Calculate speech metrics using transcript timestamps when available
+  const calculateSpeechMetrics = (transcript, durationSeconds, timestampData = []) => {
+    if (!transcript || transcript.trim() === '' || !durationSeconds || durationSeconds <= 0) {
+      return { 
+        averageSpeechRate: 0,
+        conversationalSpeechRate: 0,
+        longPauses: 0,
+        pauseDurations: []
+      };
+    }
+    
+    // Clean transcript and split into words
+    const words = transcript.trim().split(/\s+/).filter(word => word.length > 0);
+    const wordCount = words.length;
+    const durationMinutes = durationSeconds / 60;
+    
+    // Calculate basic average speech rate (words per minute)
+    const averageSpeechRate = Math.round(wordCount / durationMinutes);
+    
+    // Check if we have timestamp data
+    const hasTimestamps = timestampData && timestampData.length > 0;
+    
+    if (hasTimestamps) {
+      // Use actual timestamp data for precise calculations
+      return calculateWithTimestamps(words, timestampData, durationSeconds);
+    } else {
+      // Fall back to chunk-based estimation
+      return calculateWithEstimation(words, durationSeconds, averageSpeechRate);
+    }
+  };
+
+  // Calculate metrics using actual timestamps
+  const calculateWithTimestamps = (words, timestampData, durationSeconds) => {
+    const wordCount = words.length;
+    const durationMinutes = durationSeconds / 60;
+    const averageSpeechRate = Math.round(wordCount / durationMinutes);
+    
+    // Sort timestamps chronologically
+    const sortedEvents = [...timestampData].sort((a, b) => a.timeStart - b.timeStart);
+    
+    // Find speaking segments and pauses
+    const speakingSegments = [];
+    const pauseDurations = [];
+    let lastEndTime = 0;
+    
+    // Account for initial silence
+    if (sortedEvents.length > 0 && sortedEvents[0].timeStart > 1.0) {
+      pauseDurations.push(sortedEvents[0].timeStart);
+    }
+    
+    // Process all speech segments
+    for (let i = 0; i < sortedEvents.length; i++) {
+      const event = sortedEvents[i];
+      
+      // Check for pause between segments
+      const gap = event.timeStart - lastEndTime;
+      if (lastEndTime > 0 && gap > 0.3) { // Lower threshold to catch more pauses
+        pauseDurations.push(gap);
+      }
+      
+      // Check for potential micro-pauses within this segment
+      const words = event.words.split(/\s+/).filter(w => w.length > 0);
+      const duration = event.timeEnd - event.timeStart;
+      
+      // If speaking rate within this segment is unusually slow, there might be internal pauses
+      const segmentWPM = (words.length / (duration / 60));
+      const adjustedDuration = segmentWPM < 100 ? 
+        (words.length * 0.3) : // Estimate actual speaking time if very slow
+        duration;
+      
+      speakingSegments.push({
+        duration: adjustedDuration,
+        wordCount: words.length,
+        originalDuration: duration
+      });
+      
+      lastEndTime = event.timeEnd;
+    }
+    
+    // Account for final silence
+    if (sortedEvents.length > 0 && 
+        (durationSeconds - sortedEvents[sortedEvents.length - 1].timeEnd) > 1.0) {
+      pauseDurations.push(durationSeconds - sortedEvents[sortedEvents.length - 1].timeEnd);
+    }
+    
+    // Calculate more accurate speaking time
+    const totalSpeakingTime = speakingSegments.reduce((sum, segment) => sum + segment.duration, 0);
+    const totalSpeakingWords = speakingSegments.reduce((sum, segment) => sum + segment.wordCount, 0);
+    
+    // Calculate conversational speech rate (WPM during active speaking)
+    const conversationalSpeechRate = totalSpeakingTime > 0 ? 
+      Math.round((totalSpeakingWords / (totalSpeakingTime / 60))) : 
+      averageSpeechRate;
+    
+    // Better categorize pauses by duration
+    const shortPauses = pauseDurations.filter(d => d >= 0.3 && d < 1).length;
+    const mediumPauses = pauseDurations.filter(d => d >= 1 && d < 2).length;
+    const longPauses = pauseDurations.filter(d => d >= 2).length;
+    
+    return {
+      averageSpeechRate,
+      conversationalSpeechRate: Math.min(conversationalSpeechRate, 300), // Cap at realistic maximum
+      longPauses,
+      mediumPauses,
+      shortPauses,
+      totalPauses: pauseDurations.length,
+      pauseDurations: pauseDurations.filter(duration => duration >= 1), // Include medium and long pauses
+      speakingTimePercent: Math.round((totalSpeakingTime / durationSeconds) * 100)
+    };
+  };
+
+  // Fallback calculation using estimation
+  const calculateWithEstimation = (words, durationSeconds, averageSpeechRate) => {
+    // Use sliding window approach to estimate dense speaking segments
+    const windowSizes = [6, 10, 15];
+    let chunkRates = [];
+    
+    windowSizes.forEach(windowSize => {
+      if (words.length >= windowSize) {
+        for (let i = 0; i <= words.length - windowSize; i++) {
+          const chunkProportion = windowSize / words.length;
+          const estimatedChunkDuration = durationSeconds * chunkProportion;
+          const chunkRateWPM = (windowSize / (estimatedChunkDuration / 60));
+          
+          if (chunkRateWPM > 60 && chunkRateWPM < 300) {
+            chunkRates.push(chunkRateWPM);
+          }
+        }
+      }
+    });
+    
+    // Estimate conversational speech rate (75th percentile of chunk rates)
+    let conversationalSpeechRate = averageSpeechRate;
+    if (chunkRates.length > 0) {
+      chunkRates.sort((a, b) => a - b);
+      const idx = Math.floor(chunkRates.length * 0.75);
+      conversationalSpeechRate = Math.round(chunkRates[idx]);
+    }
+    
+    // Estimate number of long pauses based on rate differential
+    const rateDifferential = conversationalSpeechRate / averageSpeechRate;
+    const estimatedPauseTime = durationSeconds * (1 - (1 / rateDifferential));
+    const estimatedLongPauses = Math.floor(estimatedPauseTime / 3); // Assume average pause is ~3s
+    
+    return {
+      averageSpeechRate,
+      conversationalSpeechRate,
+      longPauses: Math.max(0, estimatedLongPauses),
+      pauseDurations: [],
+      speakingTimePercent: Math.min(100, Math.round((100 / rateDifferential)))
+    };
+  };
+
+  // Monitor transcription status - replace with this improved version
+  useEffect(() => {
+    let inactivityCheckTimer = null;
+    
+    if (isRecording && isTranscribing) {
+      // Store current transcript value for comparison within the interval
+      const currentTranscriptSnapshot = transcript;
+      
+      // Set initial timestamp
+      lastTranscriptUpdateRef.current = Date.now();
+      
+      inactivityCheckTimer = setInterval(() => {
+        const now = Date.now();
+        // Check if transcript hasn't changed since interval started
+        const transcriptStalled = (now - lastTranscriptUpdateRef.current > 10000) && 
+                                 (transcript === currentTranscriptSnapshot);
+        
+        if (transcriptStalled) {
+          console.log("Transcript appears stalled. Attempting to restart recognition.");
+          restartTranscription();
+          
+          // Update timestamp to prevent rapid restarts
+          lastTranscriptUpdateRef.current = Date.now();
+        }
+      }, 7000); // Check less frequently to avoid too many restart attempts
+    }
+    
+    return () => {
+      if (inactivityCheckTimer) {
+        clearInterval(inactivityCheckTimer);
+      }
+    };
+  }, [isRecording, isTranscribing, transcript, restartTranscription]);
+
+  // Add a separate useEffect to update the lastTranscriptUpdateRef when transcript changes
+  useEffect(() => {
+    // Update timestamp when transcript changes
+    if (isRecording && isTranscribing) {
+      lastTranscriptUpdateRef.current = Date.now();
+    }
+  }, [transcript, isRecording, isTranscribing]);
 
   // Loading state
   if (loading) {
@@ -779,11 +1209,7 @@ const ChallengeAttempt = () => {
                   maxH="250px"
                   overflowY="auto"
                 >
-                  <Box mb={2} px={2}>
-                    <Text fontSize="sm" fontStyle="italic" color="gray.600">
-                      These hints are based on the evaluation criteria for this challenge. Make sure to address them in your pitch.
-                    </Text>
-                  </Box>
+                
                   {challenge?.evaluationCriteria?.length > 0 ? (
                     <List spacing={3}>
                       {challenge.evaluationCriteria.map((criteria, index) => (
@@ -860,6 +1286,14 @@ const ChallengeAttempt = () => {
                 <Badge colorScheme={isTranscribing ? "green" : "gray"}>
                   {isTranscribing ? "Active" : "Inactive"}
                 </Badge>
+                <IconButton
+                  icon={<FaRedo />}
+                  aria-label="Restart transcription"
+                  size="sm"
+                  isDisabled={!isRecording || !isTranscribing}
+                  onClick={restartTranscription}
+                  ml={2}
+                />
               </HStack>
             </HStack>
             <Divider mb={2} />

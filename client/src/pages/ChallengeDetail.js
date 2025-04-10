@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useContext } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import AuthContext from "../context/authContext";
 import SubmissionForm from "./SubmissionForm";
-import { toast } from "react-toastify";
+import { useToast } from "@chakra-ui/react";
 import {
   Box,
   Container,
@@ -14,7 +14,6 @@ import {
   Spinner,
   VStack,
   HStack,
-  Divider,
   Button,
   useDisclosure,
   Modal,
@@ -23,43 +22,54 @@ import {
   ModalHeader,
   ModalCloseButton,
   ModalBody,
-  ModalFooter,
   useColorModeValue,
   Icon,
-  Badge,
-  Stat,
-  StatLabel,
-  StatNumber,
   Center,
   Alert,
   AlertIcon,
-  SimpleGrid,
   List,
   ListItem,
   Tag,
-  TagLabel,
   TagLeftIcon,
+  TagLabel,
+  Flex,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  Divider,
+  Badge,
 } from "@chakra-ui/react";
-import { FaClipboard, FaTrophy, FaUserGraduate, FaClock, FaUser, FaPlus, FaMinus } from 'react-icons/fa';
+import { 
+  FaClipboard, 
+  FaTrophy, 
+  FaUserGraduate, 
+  FaClock, 
+  FaUser, 
+  FaPlus, 
+  FaMinus,
+  FaChartLine
+} from 'react-icons/fa';
+import { EditIcon } from '@chakra-ui/icons';
 
 const ChallengeDetail = () => {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { assignmentActive, assignmentId: stateAssignmentId } = location.state || {};
   const { token, user } = useContext(AuthContext);
   const [challenge, setChallenge] = useState(null);
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   const { isOpen, onOpen, onClose } = useDisclosure();
-
   const userRole = user?.role || [];
-  console.log(userRole);
 
   useEffect(() => {
     const fetchChallenge = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:5000/api/challenges/${id}`,
+          `${process.env.REACT_APP_API_URL}/api/challenges/${id}`,
           {
             headers: { "x-auth-token": token },
           }
@@ -68,148 +78,280 @@ const ChallengeDetail = () => {
         setLoading(false);
       } catch (err) {
         console.error(err);
-        toast.error("Failed to fetch challenge");
+        toast({
+          title: "Failed to fetch challenge",
+          status: "error",
+          duration: 3000,
+          isClosable: true
+        });
         setLoading(false);
       }
     };
 
     fetchChallenge();
-  }, [id, token]);
+  }, [id, token, toast]);
 
-  const bgColor = useColorModeValue('white', 'gray.700');
+  const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const highlightColor = useColorModeValue('brand.50', 'brand.900');
+  const accentColor = useColorModeValue('brand.500', 'brand.300');
+
+  if (loading) {
+    return (
+      <Container maxW="container.xl" py={16}>
+        <Center>
+          <Spinner size="xl" thickness="4px" speed="0.65s" color="brand.500" />
+        </Center>
+      </Container>
+    );
+  }
+
+  if (!challenge) {
+    return (
+      <Container maxW="container.xl" py={8}>
+        <Alert status="error" borderRadius="md">
+          <AlertIcon />
+          Challenge not found
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
     <Container maxW="container.xl" py={8}>
-      <VStack spacing={6} align="stretch">
-        {loading ? (
-          <Center h="200px">
-            <Spinner size="xl" />
-          </Center>
-        ) : !challenge ? (
-          <Alert status="error">
-            <AlertIcon />
-            Challenge not found
-          </Alert>
-        ) : (
-          <>
-            <Box p={6} bg={bgColor} rounded="lg" shadow="sm">
-              <VStack align="stretch" spacing={4}>
-                <HStack justify="space-between" wrap="wrap">
-                  <Heading size="lg">{challenge.name}</Heading>
+      <VStack spacing={8} align="stretch">
+        {/* Header Section */}
+        <Box 
+          p={8} 
+          bg={bgColor} 
+          rounded="lg" 
+          shadow="sm" 
+          borderWidth="1px" 
+          borderColor={borderColor}
+        >
+          <Flex justify="space-between" align="center" wrap="wrap" gap={4}>
+            <VStack align="start" spacing={1} flex="1">
+              <Heading 
+                size="xl" 
+                bgGradient="linear(to-r, brand.400, purple.400)" 
+                bgClip="text"
+              >
+                {challenge.name}
+              </Heading>
+              
+              <HStack spacing={4} mt={1}>
+                <HStack>
+                  <Icon as={FaUser} color={accentColor} boxSize={3.5} />
+                  <Text color="gray.500" fontSize="sm">
+                    Created by {challenge.createdBy.name}
+                  </Text>
+                </HStack>
+                
+                <HStack>
+                  <Icon as={FaClock} color={accentColor} boxSize={3.5} />
+                  <Text color="gray.500" fontSize="sm">
+                    {new Date(challenge.createdDate).toLocaleDateString()}
+                  </Text>
+                </HStack>
+                
+                <HStack>
+                  <Icon as={FaChartLine} color={accentColor} boxSize={3.5} />
+                  <Text color="gray.500" fontSize="sm">
+                    {challenge.attempts || 0} attempts
+                  </Text>
+                </HStack>
+              </HStack>
+            </VStack>
+            
+            {(userRole.includes("admin") || userRole.includes("trainer")) && (
+              <Button
+                leftIcon={<EditIcon />}
+                colorScheme="brand"
+                variant="outline"
+                size="md"
+                onClick={() => navigate(`/challenges/edit/${challenge._id}`)}
+                borderRadius="full"
+              >
+                Edit
+              </Button>
+            )}
+          </Flex>
+          
+          <Text mt={6} fontSize="lg" color="gray.600" _dark={{ color: "gray.300" }}>
+            {challenge.description}
+          </Text>
+          
+          {/* Only show the Attempt button if assignmentActive is true */}
+          {assignmentActive && (userRole.includes("trainee") || userRole.includes("trainer")) && (
+            <Flex justify="center" mt={8}>
+              <Button
+                colorScheme="brand"
+                size="lg"
+                px={10}
+                onClick={onOpen}
+                leftIcon={<Icon as={FaClipboard} />}
+                _hover={{ transform: 'translateY(-2px)', shadow: 'md' }}
+                transition="all 0.2s"
+              >
+                Attempt Challenge
+              </Button>
+            </Flex>
+          )}
+        </Box>
+
+        <Grid templateColumns={{ base: "1fr", lg: "3fr 1fr" }} gap={8}>
+          <GridItem>
+            {/* Ideal Pitch Section */}
+            <Box 
+              p={8} 
+              bg={bgColor} 
+              rounded="lg" 
+              shadow="sm"
+              borderWidth="1px"
+              borderColor={borderColor}
+              mb={8}
+            >
+              <HStack mb={6}>
+                <Icon as={FaTrophy} color={accentColor} boxSize={5} />
+                <Heading size="md">Ideal Pitch</Heading>
+              </HStack>
+              
+              <Box 
+                p={5}
+                bg={highlightColor}
+                borderRadius="md"
+                borderLeftWidth="4px"
+                borderLeftColor={accentColor}
+              >
+                <Text whiteSpace="pre-wrap" fontSize="md" lineHeight="tall">
+                  {challenge.idealPitch}
+                </Text>
+              </Box>
+            </Box>
+            
+            {/* Evaluation Criteria Section */}
+            <Box 
+              p={8} 
+              bg={bgColor} 
+              rounded="lg" 
+              shadow="sm"
+              borderWidth="1px"
+              borderColor={borderColor}
+            >
+              <HStack mb={6}>
+                <Icon as={FaUserGraduate} color={accentColor} boxSize={5} />
+                <Heading size="md">Evaluation Criteria</Heading>
+              </HStack>
+              
+              <Text mb={4} color="gray.600" _dark={{ color: "gray.400" }}>
+                Your pitch will be evaluated based on the following criteria:
+              </Text>
+              
+              <List spacing={4}>
+                {challenge.evaluationCriteria.map((criteria, index) => {
+                  const isPositive = criteria.weight > 0;
+                  return (
+                    <ListItem key={index}>
+                      <Flex 
+                        p={4} 
+                        borderRadius="md" 
+                        bg={isPositive ? "green.50" : "red.50"}
+                        borderLeftWidth="4px"
+                        borderLeftColor={isPositive ? "green.400" : "red.400"}
+                        _dark={{
+                          bg: isPositive ? "rgba(74, 222, 128, 0.1)" : "rgba(248, 113, 113, 0.1)",
+                          borderLeftColor: isPositive ? "green.400" : "red.400",
+                        }}
+                      >
+                        <HStack align="flex-start" spacing={3}>
+                          <Icon 
+                            as={isPositive ? FaPlus : FaMinus} 
+                            color={isPositive ? "green.500" : "red.500"} 
+                            boxSize={4}
+                            mt={1}
+                          />
+                          <VStack align="start" spacing={1}>
+                            <Badge 
+                              colorScheme={isPositive ? "green" : "red"} 
+                              variant="subtle"
+                              px={2}
+                              py={0.5}
+                            >
+                              {isPositive ? `+${criteria.weight}` : criteria.weight} points
+                            </Badge>
+                            <Text fontWeight="medium">
+                              {criteria.keyword}
+                            </Text>
+                          </VStack>
+                        </HStack>
+                      </Flex>
+                    </ListItem>
+                  );
+                })}
+              </List>
+            </Box>
+          </GridItem>
+          
+          <GridItem>
+            {/* Challenge Statistics Section */}
+            <Box 
+              p={6} 
+              bg={bgColor} 
+              rounded="lg" 
+              shadow="sm"
+              borderWidth="1px"
+              borderColor={borderColor}
+              position="sticky"
+              top="20px"
+            >
+              <VStack align="stretch" spacing={6}>
+                <Heading size="md">Challenge Insights</Heading>
+                <Divider />
+                
+                <Stat>
+                  <StatLabel color="gray.500">Total Attempts</StatLabel>
+                  <StatNumber fontWeight="bold" fontSize="3xl" color={accentColor}>
+                    {challenge.attempts || 0}
+                  </StatNumber>
+                  <StatHelpText>
+                    From all trainees
+                  </StatHelpText>
+                </Stat>
+                
+                <Divider />
+                
+                <VStack align="start">
+                  <Text fontWeight="medium">Difficulty Level</Text>
                   <Badge 
-                    colorScheme={assignmentActive ? "green" : "red"}
-                    p={2}
+                    colorScheme={
+                      challenge.evaluationCriteria.length > 5 ? "red" : 
+                      challenge.evaluationCriteria.length > 3 ? "yellow" : 
+                      "green"
+                    }
+                    py={1}
+                    px={3}
                     borderRadius="full"
                   >
-                    {assignmentActive ? "Active" : "Inactive"}
+                    {challenge.evaluationCriteria.length > 5 ? "Advanced" : 
+                     challenge.evaluationCriteria.length > 3 ? "Intermediate" : 
+                     "Beginner"}
                   </Badge>
-                </HStack>
-                <Text color="gray.500">{challenge.description}</Text>
+                </VStack>
               </VStack>
             </Box>
-
-            <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={6}>
-              <GridItem>
-                <VStack spacing={6} align="stretch">
-                  <Box p={6} bg={bgColor} rounded="lg" shadow="sm">
-                    <Heading size="md" mb={4}>Challenge Details</Heading>
-                    <VStack align="stretch" spacing={4}>
-                      <HStack>
-                        <Icon as={FaTrophy} color="brand.500" />
-                        <Text fontWeight="bold">Ideal Pitch:</Text>
-                        <Text>{challenge.idealPitch}</Text>
-                      </HStack>
-                      <VStack align="stretch">
-                        <HStack>
-                          <Icon as={FaUserGraduate} color="brand.500" />
-                          <Text fontWeight="bold">Evaluation Criteria:</Text>
-                        </HStack>
-                        <List spacing={2} pl={8}>
-                          {challenge.evaluationCriteria.map((criteria, index) => (
-                            <ListItem key={index}>
-                              <Tag
-                                size="md"
-                                variant="subtle"
-                                colorScheme={criteria.weight > 0 ? "green" : "red"}
-                              >
-                                <TagLeftIcon as={criteria.weight > 0 ? FaPlus : FaMinus} />
-                                <TagLabel>
-                                  {criteria.keyword} ({criteria.weight > 0 ? '+' : ''}{criteria.weight})
-                                </TagLabel>
-                              </Tag>
-                            </ListItem>
-                          ))}
-                        </List>
-                      </VStack>
-                    </VStack>
-                  </Box>
-
-                  <Box p={6} bg={bgColor} rounded="lg" shadow="sm">
-                    <Heading size="md" mb={4}>Additional Information</Heading>
-                    <VStack align="stretch" spacing={4}>
-                      <HStack>
-                        <Icon as={FaUser} color="brand.500" />
-                        <Text fontWeight="bold">Created By:</Text>
-                        <Text>{challenge.createdBy.name}</Text>
-                      </HStack>
-                      <HStack>
-                        <Icon as={FaClock} color="brand.500" />
-                        <Text fontWeight="bold">Created Date:</Text>
-                        <Text>{new Date(challenge.createdDate).toLocaleDateString()}</Text>
-                      </HStack>
-                    </VStack>
-                  </Box>
-                </VStack>
-              </GridItem>
-
-              <GridItem>
-                <VStack spacing={6} align="stretch">
-                  {(userRole.includes("trainee") || userRole.includes("trainer")) && (
-                    <Box p={6} bg={bgColor} rounded="lg" shadow="sm">
-                      <VStack spacing={4}>
-                        <Button
-                          colorScheme="brand"
-                          size="lg"
-                          width="100%"
-                          onClick={onOpen}
-                          isDisabled={!assignmentActive}
-                          leftIcon={<Icon as={FaClipboard} />}
-                        >
-                          Attempt Challenge
-                        </Button>
-                      </VStack>
-                    </Box>
-                  )}
-
-                  <Box p={6} bg={bgColor} rounded="lg" shadow="sm">
-                    <Heading size="md" mb={4}>Challenge Statistics</Heading>
-                    <SimpleGrid columns={2} spacing={4}>
-                      <Stat>
-                        <StatLabel>Total Attempts</StatLabel>
-                        <StatNumber>24</StatNumber>
-                      </Stat>
-                      <Stat>
-                        <StatLabel>Avg. Score</StatLabel>
-                        <StatNumber>78%</StatNumber>
-                      </Stat>
-                    </SimpleGrid>
-                  </Box>
-                </VStack>
-              </GridItem>
-            </Grid>
-          </>
-        )}
+          </GridItem>
+        </Grid>
       </VStack>
 
+      {/* Submission Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Submit Your Solution</ModalHeader>
+          <ModalHeader>Submit Your Pitch</ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
+          <ModalBody pb={6}>
             <SubmissionForm
-              challengeId={challenge?._id}
+              challengeId={challenge._id}
               assignmentId={stateAssignmentId}
             />
           </ModalBody>

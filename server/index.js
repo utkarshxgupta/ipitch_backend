@@ -46,14 +46,14 @@ async function initializeServices() {
     
     // Start the server only after initializing services
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server started on port ${PORT}`);
     });
   } catch (error) {
     console.error('Failed to initialize services:', error);
     // Continue starting the server even if model loading fails
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server started on port ${PORT} (some services failed to initialize)`);
     });
   }

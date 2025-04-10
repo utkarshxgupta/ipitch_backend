@@ -7,8 +7,11 @@ const SPEECH_RATE_CONSTANTS = {
     OPTIMAL: 150,  // Ideal rate for sales pitch delivery
     FAST: 180     // Maximum acceptable rate for clarity
   },
-  WINDOW_SIZE: 30,        // 30-second windows for analysis
-  MIN_WORD_DURATION: 0.1  // 100ms minimum for valid word
+  CONVERSATIONAL_RATE: 150, // Average conversational speaking rate
+  PAUSE_THRESHOLD: 0.5,     // Pause threshold in seconds (500ms)
+  LONG_PAUSE_THRESHOLD: 2.0, // Long pause threshold in seconds (2s)
+  WINDOW_SIZE: 30,          // 30-second windows for analysis
+  MIN_WORD_DURATION: 0.1    // 100ms minimum for valid word
 };
 
 /**
@@ -17,7 +20,6 @@ const SPEECH_RATE_CONSTANTS = {
  * @returns {Object} Enhanced word metrics
  */
 function calculateSpeakingRate(word) {
-  console.log(word);
   const duration = word.endTime - word.startTime;
   
   if (!word.word || duration < SPEECH_RATE_CONSTANTS.MIN_WORD_DURATION) {
@@ -36,121 +38,77 @@ function calculateSpeakingRate(word) {
 }
 
 /**
- * Calculates comprehensive speaking rate metrics
+ * Identifies pauses between words
  * @param {Array} words - Array of word objects
- * @returns {Object} Detailed speaking rate analysis
+ * @returns {Array} Array of pause durations in seconds
  */
-function calculateAverageSpeakingRate(words) {
-  if (!words?.length) {
-    return createEmptyMetrics();
-  }
-
-  const windows = groupIntoTimeWindows(words, SPEECH_RATE_CONSTANTS.WINDOW_SIZE);
-  const windowAnalysis = calculateWindowMetrics(windows);
-  const averageRate = calculateOverallRate(windowAnalysis);
-
-  return {
-    averageRate: parseFloat(averageRate.toFixed(2)),
-    totalWords: words.length,
-    totalDuration: parseFloat((words[words.length - 1].endTime - words[0].startTime).toFixed(2))
-  };
-}
-
-/**
- * Groups words into time-based windows
- * @param {Array} words - Array of word objects
- * @param {number} windowSize - Window size in seconds
- * @returns {Array} Arrays of words grouped by time windows
- */
-function groupIntoTimeWindows(words, windowSize) {
-  if (!words || words.length === 0) {
+function identifyPauses(words) {
+  if (!words || words.length < 2) {
     return [];
   }
 
-  const windows = [];
-  let currentWindow = {
-    words: [],
-    startTime: words[0].startTime,
-    endTime: null
-  };
-
-  words.forEach(word => {
-    if (word.startTime - currentWindow.startTime >= windowSize) {
-      // Finalize current window
-      currentWindow.endTime = currentWindow.words[currentWindow.words.length - 1].endTime;
-      windows.push(currentWindow);
-      
-      // Start new window
-      currentWindow = {
-        words: [word],
-        startTime: word.startTime,
-        endTime: null
-      };
-    } else {
-      currentWindow.words.push(word);
+  const pauseDurations = [];
+  
+  for (let i = 1; i < words.length; i++) {
+    const pauseDuration = words[i].startTime - words[i-1].endTime;
+    if (pauseDuration >= SPEECH_RATE_CONSTANTS.PAUSE_THRESHOLD) {
+      pauseDurations.push(parseFloat(pauseDuration.toFixed(2)));
     }
-  });
+  }
+  
+  return pauseDurations;
+}
 
-  // Add the last window if it has words
-  if (currentWindow.words.length > 0) {
-    currentWindow.endTime = currentWindow.words[currentWindow.words.length - 1].endTime;
-    windows.push(currentWindow);
+/**
+ * Calculates comprehensive speaking rate metrics
+ * @param {Array} words - Array of word objects
+ * @returns {Object} Detailed speaking rate analysis matching SpeechMetricsSchema
+ */
+function calculateAverageSpeakingRate(words) {
+  if (!words?.length) {
+    return {
+      averageSpeechRate: 0,
+      conversationalSpeechRate: 0,
+      longPauses: 0,
+      speakingTimePercent: 0,
+      pauseDurations: []
+    };
   }
 
-  return windows;
-}
+  // Calculate total duration
+  const totalDuration = words[words.length - 1].endTime - words[0].startTime;
+  
+  // Calculate speaking time
+  const speakingTime = words.reduce((sum, word) => sum + (word.endTime - word.startTime), 0);
+  
+  // Calculate pauses
+  const pauseDurations = identifyPauses(words);
+  
+  // Count long pauses
+  const longPauses = pauseDurations.filter(duration => 
+    duration >= SPEECH_RATE_CONSTANTS.LONG_PAUSE_THRESHOLD
+  ).length;
+  
+  // Calculate speaking time percentage
+  const speakingTimePercent = parseFloat(((speakingTime / totalDuration) * 100).toFixed(2));
+  
+  // Calculate average speech rate (words per minute)
+  const averageSpeechRate = parseFloat((words.length * 60 / totalDuration).toFixed(2));
+  
+  // Calculate conversational speech rate score (how close to conversational rate)
+  const deviation = Math.abs(averageSpeechRate - SPEECH_RATE_CONSTANTS.CONVERSATIONAL_RATE);
+  const maxDeviation = 100; // Maximum reasonable deviation
+  const conversationalSpeechRate = parseFloat(
+    Math.max(0, 1 - (deviation / maxDeviation)).toFixed(2)
+  );
 
-/**
- * Calculates metrics for each time window
- * @param {Array} windows - Array of word groups by time window
- * @returns {Array} Window-level metrics
- */
-function calculateWindowMetrics(windows) {
-  return windows.map(window => {
-    // Ensure startTime and endTime are numbers
-    const startTime = typeof window.startTime === 'number' ? 
-      window.startTime : 
-      window.words[0].startTime;
-    
-    const endTime = typeof window.endTime === 'number' ? 
-      window.endTime : 
-      window.words[window.words.length - 1].endTime;
-
-    const duration = endTime - startTime;
-    const rate = (window.words.length * 60) / duration;
-
-    return {
-      startTime: parseFloat(startTime.toFixed(2)),
-      endTime: parseFloat(endTime.toFixed(2)),
-      rate: parseFloat(rate.toFixed(2)),
-      wordsInWindow: window.words.length,
-      isFast: rate > SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST,
-      isSlow: rate < SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
-      isOptimal: rate >= SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW && 
-                 rate <= SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
-    };
-  });
-}
-
-/**
- * Creates empty metrics object for null cases
- * @returns {Object} Empty metrics structure
- */
-function createEmptyMetrics() {
   return {
-    averageRate: 0,
-    totalWords: 0,
-    totalDuration: 0
+    averageSpeechRate,
+    conversationalSpeechRate,
+    longPauses,
+    speakingTimePercent,
+    pauseDurations
   };
-}
-
-/**
- * Calculates overall speaking rate
- * @param {Array} windowAnalysis - Array of window metrics
- * @returns {number} Average speaking rate
- */
-function calculateOverallRate(windowAnalysis) {
-  return windowAnalysis.reduce((sum, w) => sum + w.rate, 0) / windowAnalysis.length;
 }
 
 module.exports = {

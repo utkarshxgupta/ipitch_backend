@@ -64,7 +64,7 @@ const ChallengeForm = () => {
       };
 
       await axios.post(
-        'http://localhost:5000/api/challenges',
+        `${process.env.REACT_APP_API_URL}/api/challenges`,
         formDataToSend,
         { headers: { 'x-auth-token': token } }
       );

@@ -55,7 +55,7 @@ const SubmissionForm = ({ challengeId, assignmentId }) => {
       formData.append('assignmentId', assignmentId);
 
       const response = await axios.post(
-        'http://localhost:5000/api/submissions',
+        `${process.env.REACT_APP_API_URL}/api/submissions`,
         formData,
         {
           headers: { 

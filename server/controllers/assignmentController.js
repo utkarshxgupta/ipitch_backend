@@ -1,5 +1,7 @@
 const Assignment = require("../models/Assignment");
 const Submission = require("../models/Submission");
+const AssignmentProgress = require("../models/AssignmentProgress");
+const logger = require("../utils/logger");
 
 // @route    POST api/assignments
 // @desc     Create a new assignment
@@ -16,8 +18,34 @@ exports.createAssignment = async (req, res) => {
       enableHints: enableHints || false,
       createdBy: req.user.id,
     });
-    await assignment.save();
-    res.json(assignment);
+    
+    // Save the assignment
+    const savedAssignment = await assignment.save();
+    
+    // Create assignment progress records for all assigned users
+    if (assignedUsers && assignedUsers.length > 0) {
+      const progressRecords = assignedUsers.map(userId => ({
+        user: userId,
+        assignment: savedAssignment._id,
+        challengeProgress: [],
+        overallScore: 0,
+        completedChallenges: 0,
+        totalChallenges: challenges.length,
+        lastUpdated: new Date()
+      }));
+      
+      try {
+        // Create all progress records in a single operation
+        await AssignmentProgress.insertMany(progressRecords);
+        logger.info(`Created progress records for ${assignedUsers.length} users in assignment: ${savedAssignment._id}`);
+      } catch (progressError) {
+        logger.error(`Error creating progress records: ${progressError.message}`);
+        // We don't want to fail the assignment creation if progress creation fails
+        // Just log the error and continue
+      }
+    }
+    
+    res.json(savedAssignment);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");

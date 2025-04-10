@@ -3,8 +3,8 @@ const logger = require('../utils/logger');
 
 class TransformerEmbeddingService {
   constructor() {
-    this.modelName = 'Xenova/all-MiniLM-L6-v2';
-    this.embeddingDimension = 384;
+    this.modelName = 'Alibaba-NLP/gte-base-en-v1.5';
+    this.embeddingDimension = 768;
     this.ready = false;
     this.modelLoadFailed = false;
     this.embeddingPipeline = null;
@@ -58,7 +58,7 @@ class TransformerEmbeddingService {
     try {
       // Get embeddings using the pipeline
       const result = await this.embeddingPipeline(text, {
-        pooling: 'mean',
+        pooling: 'cls',
         normalize: true
       });
       
@@ -144,7 +144,7 @@ class TransformerEmbeddingService {
    * @param {number} stride - Number of words to slide the window
    * @returns {Array<{text: string, startIndex: number, endIndex: number}>}
    */
-  createTextWindows(text, windowSize = 25, stride = 12) {
+  createTextWindows(text, windowSize = 18, stride = 8) {
     if (!text) return [];
     
     // Split text into words
@@ -184,9 +184,15 @@ class TransformerEmbeddingService {
    * @param {number} similarityThreshold - Threshold for considering a match
    * @returns {Promise<Object>} - Detailed results with scores
    */
-  async findSemanticMatches(text, criteria, similarityThreshold = 0.70) {
-    // Use sliding windows instead of sentences
-    const windows = this.createTextWindows(text);
+  async findSemanticMatches(text, criteria, similarityThreshold = 0.69) {
+    // Create windows with three sizes to capture different semantic contexts
+    const smallWindows = this.createTextWindows(text, 7, 3);  // Small chunks for specific phrases
+    const mediumWindows = this.createTextWindows(text, 14, 7); // Medium chunks for sentence-level context
+    const largeWindows = this.createTextWindows(text, 21, 10); // Large chunks for broader contextual meaning
+    
+    // Combine all windows for analysis
+    const windows = [...smallWindows, ...mediumWindows, ...largeWindows];
+    
     if (!windows.length || !criteria?.length) {
       return { 
         score: 0, 

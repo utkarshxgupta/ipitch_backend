@@ -21,7 +21,7 @@ const MySubmissions = ({ assignmentId }) => {
     const fetchSubmissions = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:5000/api/submissions/user/assignment/${assignmentId}`,
+          `${process.env.REACT_APP_API_URL}/api/submissions/user/assignment/${assignmentId}`,
           {
             headers: { "x-auth-token": localStorage.getItem("token") },
           }

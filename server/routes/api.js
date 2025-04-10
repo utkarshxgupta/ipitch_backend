@@ -21,6 +21,8 @@ const {
   getChallenges,
   createChallenge,
   getChallengeById,
+  updateChallenge,
+  deleteChallenges // Add this line
 } = require("../controllers/challengeController");
 const {
   createSubmission,
@@ -117,6 +119,21 @@ router.post(
   createChallenge
 );
 router.get("/challenges/:id", getChallengeById);
+// Add this new route
+router.put(
+  "/challenges/:id",
+  auth,
+  roleCheck(["trainer", "admin"]),
+  updateChallenge
+);
+
+// Add the delete challenges route
+router.delete(
+  "/challenges",
+  auth,
+  roleCheck(["trainer", "admin"]),
+  deleteChallenges
+);
 
 // Submission routes
 router.post(

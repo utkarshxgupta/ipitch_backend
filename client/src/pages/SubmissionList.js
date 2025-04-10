@@ -15,7 +15,7 @@ const SubmissionList = () => {
   useEffect(() => {
     const fetchSubmissions = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/submissions/challenge/${id}`, {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/submissions/challenge/${id}`, {
           headers: { 'x-auth-token': token }
         });
         setSubmissions(res.data);

@@ -13,7 +13,7 @@ const RoleManagementModal = ({ isOpen, onClose, userId, onRolesUpdated }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/admin/users/${userId}`, {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/admin/users/${userId}`, {
           headers: { 'x-auth-token': token }
         });
         setUser(res.data);
@@ -39,7 +39,7 @@ const RoleManagementModal = ({ isOpen, onClose, userId, onRolesUpdated }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://localhost:5000/api/admin/users/${userId}/roles`, { roles }, {
+      await axios.put(`${process.env.REACT_APP_API_URL}/api/admin/users/${userId}/roles`, { roles }, {
         headers: { 'x-auth-token': token }
       });
       toast({

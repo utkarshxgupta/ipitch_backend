@@ -338,24 +338,8 @@ class TranscriptionService {
       logger.info(`Calculating speech metrics for submission: ${submissionId}`);
       const speechMetricsService = require('./speechMetrics');
       
-      // Process word-level metrics
-      const wordLevelMetrics = transcriptionResults.words
-        .map(word => speechMetricsService.calculateSpeakingRate(word))
-        .filter(metric => metric !== null);
-      
-      // Calculate overall metrics
-      const overallMetrics = speechMetricsService.calculateAverageSpeakingRate(transcriptionResults.words);
-      
-      // Create complete speech metrics object
-      const speechMetrics = {
-        overallMetrics,
-        thresholds: {
-          slow: speechMetricsService.SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.SLOW,
-          optimal: speechMetricsService.SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.OPTIMAL,
-          fast: speechMetricsService.SPEECH_RATE_CONSTANTS.WORDS_PER_MINUTE.FAST
-        },
-        wordLevelMetrics
-      };
+      // Calculate speech metrics that match our schema
+      const speechMetrics = speechMetricsService.calculateAverageSpeakingRate(transcriptionResults.words);
       
       // Update submission with transcript and speech metrics
       await Submission.findByIdAndUpdate(submissionId, {

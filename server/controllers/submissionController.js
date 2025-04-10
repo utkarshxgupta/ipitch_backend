@@ -33,6 +33,9 @@ exports.createSubmission = async (req, res) => {
       return res.status(404).json({ msg: "Challenge not found" });
     }
 
+    // Increment the attempts counter for this challenge
+    await Challenge.findByIdAndUpdate(challengeId, { $inc: { attempts: 1 } });
+
     const newSubmission = new Submission({
       assignment: assignment,
       challenge: challenge,
@@ -48,7 +51,15 @@ exports.createSubmission = async (req, res) => {
       try {
         // Use transcript directly without punctuation restoration
         submission.transcript = req.body.transcript;
-        submission.transcriptionStatus = "completed"; 
+        submission.transcriptionStatus = "completed";
+        submission.speechMetrics = {
+          averageSpeechRate: parseFloat(req.body.averageSpeechRate),
+          conversationalSpeechRate: parseFloat(req.body.conversationalSpeechRate),
+          longPauses: parseInt(req.body.longPauses),
+          speakingTimePercent: parseFloat(req.body.speakingTimePercent),
+          pauseDurations: JSON.parse(req.body.pauseDurations)
+        };
+
         await submission.save();
         
         // Initiate semantic evaluation with the original transcript
@@ -62,6 +73,7 @@ exports.createSubmission = async (req, res) => {
         logger.error(`Error processing transcript: ${error.message}`);
         submission.transcript = req.body.transcript;
         submission.transcriptionStatus = "completed";
+
         await submission.save();
         
         performSemanticEvaluation(submission._id, req.body.transcript, challenge);
@@ -136,7 +148,7 @@ async function performSemanticEvaluation(submissionId, transcript, challenge) {
       maxPossibleScore: evaluationResults.maxPossibleScore,
       evaluatedAt: new Date(),
       semanticSimilarity
-      }
+      },
     });
     
     // Update assignment progress using full submission data
@@ -253,15 +265,23 @@ exports.evaluateSubmission = async (req, res) => {
 };
 
 // @desc Get all submissions made by a user in a particular assignment
-// @route GET /api/submissions/user/:assignmentId
+// @route GET /api/submissions/user/assignment/:assignmentId
 // @access Private (Trainee)
 exports.getSubmissionsByAssignmentId = async (req, res) => {
   try {
+    // Determine which trainee ID to use
+    let traineeId = req.user.id;
+    
+    // If userId is provided in query params and user is admin/manager, use that instead
+    if (req.query.traineeId && (req.user.role.includes('admin') || req.user.role.includes('manager'))) {
+      traineeId = req.query.traineeId;
+    }
+    
     const submissions = await Submission.find({
-      trainee: req.user.id,
+      trainee: traineeId,
       assignment: req.params.id,
     }).populate("challenge", ["name"]);
-    // console.log(submissions);
+    
     res.json(submissions);
   } catch (error) {
     console.error(error);
