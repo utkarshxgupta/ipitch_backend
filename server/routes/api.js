@@ -170,7 +170,6 @@ router.get("/submissions/:id", auth, getSubmissionById);
 router.post(
   "/submissions/:id/comment",
   auth,
-  roleCheck(["trainer", "manager", "admin"]),
   addComment
 );
 

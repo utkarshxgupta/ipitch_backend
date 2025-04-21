@@ -352,7 +352,7 @@ const ChallengeAttempt = () => {
     // Add inactivity detection
     inactivityTimer = setInterval(() => {
       // If no transcription activity for 8 seconds while recording
-      if (isRecording && Date.now() - lastActivityRef.current > 8000) {
+      if (isRecording && Date.now() - lastActivityRef.current > 3000) {
         console.log("Detected inactive transcription, attempting to restart");
         try {
           recognition.stop();

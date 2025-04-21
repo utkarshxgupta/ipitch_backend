@@ -184,7 +184,7 @@ class TransformerEmbeddingService {
    * @param {number} similarityThreshold - Threshold for considering a match
    * @returns {Promise<Object>} - Detailed results with scores
    */
-  async findSemanticMatches(text, criteria, similarityThreshold = 0.69) {
+  async findSemanticMatches(text, criteria, similarityThreshold = 0.65) {
     // Create windows with three sizes to capture different semantic contexts
     const smallWindows = this.createTextWindows(text, 7, 3);  // Small chunks for specific phrases
     const mediumWindows = this.createTextWindows(text, 14, 7); // Medium chunks for sentence-level context
@@ -289,16 +289,23 @@ class TransformerEmbeddingService {
     // Calculate maximum possible score range
     const maxPossibleScore = maxPossiblePositiveScore + maxPossibleNegativeScore;
     
-    // Normalize score to 0-100 range
+    // Calculate the true minimum possible score 
+    const minPossibleScore = -maxPossiblePositiveScore/2 - maxPossibleNegativeScore;
+    
+    // Calculate the total possible score range
+    const totalScoreRange = maxPossibleScore - minPossibleScore;
+    
+    // Normalize score to 0-100 range using the true score boundaries
     const normalizedScore = maxPossibleScore === 0 
       ? 50 // Default to middle when no criteria
-      : Math.max(0, Math.min(100, ((totalScore + maxPossibleNegativeScore) / maxPossibleScore) * 100));
+      : Math.max(0, Math.min(100, ((totalScore - minPossibleScore) / totalScoreRange) * 100));
 
     return {
       score: Math.round(normalizedScore),
       rawScore: totalScore,
       matches,
       maxPossibleScore,
+      minPossibleScore,
       positiveMaxScore: maxPossiblePositiveScore,
       negativeMaxScore: maxPossibleNegativeScore
     };

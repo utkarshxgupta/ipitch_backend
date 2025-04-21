@@ -146,6 +146,7 @@ async function performSemanticEvaluation(submissionId, transcript, challenge) {
       details: evaluationResults.details,
       rawScore: evaluationResults.rawScore,
       maxPossibleScore: evaluationResults.maxPossibleScore,
+      minPossibleScore: evaluationResults.minPossibleScore,
       evaluatedAt: new Date(),
       semanticSimilarity
       },

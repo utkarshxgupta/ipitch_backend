@@ -25,10 +25,40 @@ import {
   useColorModeValue,
   Grid,
   GridItem,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  Icon,
+  Tooltip,
+  Avatar,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  Card,
+  CardBody,
+  CardHeader,
+  Flex,
+  IconButton,
+  Spacer,
+  Drawer,
+  DrawerOverlay,
+  DrawerBody,
+  DrawerHeader,
+  DrawerContent,
+  DrawerCloseButton,
+  Divider,
+  Progress,
+  Slider,
+  SliderTrack,
+  SliderFilledTrack,
+  SliderThumb,
 } from "@chakra-ui/react";
+import { InfoIcon, AddIcon, CheckIcon, StarIcon } from "@chakra-ui/icons";
+import { FaVideo, FaFileAlt, FaChartBar, FaComments, FaRobot } from "react-icons/fa";
 import AuthContext from "../context/authContext";
-
-// Add this new component after the existing imports and before other components
 
 const AutomaticEvaluationDisplay = ({ evaluation }) => {
   const bgColor = useColorModeValue("white", "gray.700");
@@ -37,124 +67,133 @@ const AutomaticEvaluationDisplay = ({ evaluation }) => {
 
   return (
     <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm" mb={6}>
-      <HStack justify="space-between" mb={4}>
-        <Heading size="md">Automatic Evaluation</Heading>
-        <Badge 
-          colorScheme={evaluation.score >= 70 ? "green" : "orange"}
-          fontSize="md"
-        >
-          Score: {evaluation.score}%
-        </Badge>
-      </HStack>
-
-      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={4}>
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={6}>
         <Box>
-          <Text fontWeight="bold" mb={2}>Raw Score: {evaluation.rawScore}</Text>
-          <Text fontSize="sm" color="gray.500">
-            Out of maximum {evaluation.maxPossibleScore} points
-          </Text>
+          <HStack mb={2}>
+            <Text fontWeight="bold" fontSize="lg">Overall Score:</Text>
+            <Tooltip 
+              label={
+                <Box>
+                  <Text>Normalization formula:</Text>
+                  <Text fontFamily="mono" fontWeight="bold">
+                    score = (rawScore - minScore) × 100 ÷ (maxScore - minScore)
+                  </Text>
+                </Box>
+              }
+              placement="top"
+              hasArrow
+            >
+              <Badge 
+                colorScheme={evaluation.score >= 70 ? "green" : "orange"}
+                fontSize="md"
+                px={2}
+                py={1}
+              >
+                {evaluation.score}% <InfoIcon ml={1} boxSize={3} />
+              </Badge>
+            </Tooltip>
+          </HStack>
+          <SimpleGrid columns={2} spacing={3} pl={2}>
+            <Text fontSize="sm">Raw Score: <b>{evaluation.rawScore}</b></Text>
+            <Text fontSize="sm">Max Possible: <b>{evaluation.maxPossibleScore}</b></Text>
+          </SimpleGrid>
         </Box>
         <Box>
           <Text fontWeight="bold" mb={2}>Evaluated On:</Text>
           <Text fontSize="sm" color="gray.500">
             {new Date(evaluation.evaluatedAt).toLocaleString()}
           </Text>
+          {evaluation.semanticSimilarity && (
+            <Text mt={2}>
+              Overall Semantic Similarity: 
+              <Badge ml={2} colorScheme={evaluation.semanticSimilarity.similarity > 0.7 ? "green" : 
+                           evaluation.semanticSimilarity.similarity > 0.5 ? "yellow" : "red"}>
+                {(evaluation.semanticSimilarity.similarity * 100).toFixed(1)}%
+              </Badge>
+            </Text>
+          )}
         </Box>
       </SimpleGrid>
 
-      {evaluation.semanticSimilarity && (
-        <Box mb={4} p={3} borderRadius="md" border="1px solid" borderColor="gray.200">
-          <Text fontWeight="bold" mb={2}>Overall Semantic Similarity</Text>
-          <HStack justify="space-between">
-            <Text>Similarity Score:</Text>
-            <Badge colorScheme={evaluation.semanticSimilarity.similarity > 0.7 ? "green" : 
-                           evaluation.semanticSimilarity.similarity > 0.5 ? "yellow" : "red"}>
-              {(evaluation.semanticSimilarity.similarity * 100).toFixed(1)}%
-            </Badge>
-          </HStack>
-        </Box>
-      )}
+      <Divider mb={4} />
 
-      <Box>
-        <Text fontWeight="bold" mb={3}>Criteria Analysis</Text>
-        <VStack spacing={3} align="stretch">
-          {evaluation.details.map((detail, index) => {
-            // Determine if this is a positive or negative match
-            const isPositiveMatch = detail.matched && detail.weight > 0;
-            const isNegativeMatch = detail.matched && detail.weight < 0;
-            
-            return (
-              <Box 
-                key={index}
-                p={3}
-                borderRadius="md"
-                border="1px solid"
-                borderColor={
-                  isPositiveMatch ? "green.200" : 
-                  isNegativeMatch ? "red.200" : 
-                  "gray.200"
-                }
-                bg={
-                  isPositiveMatch ? "green.50" : 
-                  isNegativeMatch ? "red.50" : 
-                  ""
-                }
-                _dark={{
-                  bg: isPositiveMatch ? "rgba(74, 222, 128, 0.1)" : 
-                      isNegativeMatch ? "rgba(248, 113, 113, 0.1)" : 
-                      "",
-                  borderColor: isPositiveMatch ? "green.600" : 
-                              isNegativeMatch ? "red.600" : 
-                              "gray.600"
-                }}
-              >
-                <HStack justify="space-between" mb={1}>
-                  <Text fontWeight="semibold">{detail.keyword}</Text>
-                  <Badge 
-                    colorScheme={
-                      isPositiveMatch ? "green" : 
-                      isNegativeMatch ? "red" : 
-                      "gray"
-                    }
-                  >
-                    {detail.matched ? 
-                      (detail.weight > 0 ? "Included (Good)" : "Included (Bad)") : 
-                      (detail.weight > 0 ? "Missing" : "Avoided (Good)")
-                    }
-                  </Badge>
-                </HStack>
-                
-                {detail.matched && detail.matchedSentence && (
-                  <Text 
-                    fontSize="sm" 
-                    fontStyle="italic" 
-                    color={detail.weight > 0 ? "green.600" : "red.600"}
-                    mb={2}
-                  >
-                    "{detail.matchedSentence}"
-                  </Text>
-                )}
-                
-                <SimpleGrid columns={3} spacing={2}>
-                  <Text fontSize="sm">Weight: {detail.weight}</Text>
-                  <Text fontSize="sm">Similarity: {(detail.similarity * 100).toFixed(1)}%</Text>
-                  <Text 
-                    fontSize="sm" 
-                    fontWeight="medium" 
-                    color={
-                      detail.score > 0 ? "green.600" : 
-                      detail.score < 0 ? "red.600" : 
-                      "gray.600"
-                    }
-                  >
-                    Score: {detail.score > 0 ? `+${detail.score}` : detail.score}
-                  </Text>
-                </SimpleGrid>
-              </Box>
-            );
-          })}
-        </VStack>
-      </Box>
+      <Text fontWeight="bold" fontSize="lg" mb={4}>Criteria Analysis</Text>
+      <VStack spacing={3} align="stretch">
+        {evaluation.details.map((detail, index) => {
+          const isPositiveMatch = detail.matched && detail.weight > 0;
+          const isNegativeMatch = detail.matched && detail.weight < 0;
+          
+          return (
+            <Box 
+              key={index}
+              p={3}
+              borderRadius="md"
+              border="1px solid"
+              borderColor={
+                isPositiveMatch ? "green.200" : 
+                isNegativeMatch ? "red.200" : 
+                "gray.200"
+              }
+              bg={
+                isPositiveMatch ? "green.50" : 
+                isNegativeMatch ? "red.50" : 
+                ""
+              }
+              _dark={{
+                bg: isPositiveMatch ? "rgba(74, 222, 128, 0.1)" : 
+                    isNegativeMatch ? "rgba(248, 113, 113, 0.1)" : 
+                    "",
+                borderColor: isPositiveMatch ? "green.600" : 
+                            isNegativeMatch ? "red.600" : 
+                            "gray.600"
+              }}
+            >
+              <HStack justify="space-between" mb={1}>
+                <Text fontWeight="semibold">{detail.keyword}</Text>
+                <Badge 
+                  colorScheme={
+                    isPositiveMatch ? "green" : 
+                    isNegativeMatch ? "red" : 
+                    "gray"
+                  }
+                >
+                  {detail.matched ? 
+                    (detail.weight > 0 ? "Included (Good)" : "Included (Bad)") : 
+                    (detail.weight > 0 ? "Missing" : "Avoided (Good)")
+                  }
+                </Badge>
+              </HStack>
+              
+              {detail.matched && detail.matchedSentence && (
+                <Text 
+                  fontSize="sm" 
+                  fontStyle="italic" 
+                  color={detail.weight > 0 ? "green.600" : "red.600"}
+                  mb={2}
+                >
+                  "{detail.matchedSentence}"
+                </Text>
+              )}
+              
+              <SimpleGrid columns={3} spacing={2}>
+                <Text fontSize="sm">Weight: {detail.weight}</Text>
+                <Text fontSize="sm">Similarity: {(detail.similarity * 100).toFixed(1)}%</Text>
+                <Text 
+                  fontSize="sm" 
+                  fontWeight="medium" 
+                  color={
+                    detail.score > 0 ? "green.600" : 
+                    detail.score < 0 ? "red.600" : 
+                    "gray.600"
+                  }
+                >
+                  Score: {detail.score > 0 ? `+${detail.score}` : detail.score}
+                </Text>
+              </SimpleGrid>
+            </Box>
+          );
+        })}
+      </VStack>
     </Box>
   );
 };
@@ -162,7 +201,6 @@ const AutomaticEvaluationDisplay = ({ evaluation }) => {
 const SpeechMetricsDisplay = ({ metrics }) => {
   const bgColor = useColorModeValue("white", "gray.700");
   
-  // Comprehensive null checks
   if (!metrics) {
     return (
       <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
@@ -179,7 +217,6 @@ const SpeechMetricsDisplay = ({ metrics }) => {
     pauseDurations = []
   } = metrics;
 
-  // Helper functions for metric evaluation
   const getSpeechRateStatus = (rate) => {
     if (!rate) return { color: "gray", text: "No Data" };
     if (rate < 120) return { color: "orange", text: "Slow" };
@@ -200,12 +237,10 @@ const SpeechMetricsDisplay = ({ metrics }) => {
     return { color: "green", text: "Few" };
   };
 
-  // Calculate average pause duration
   const averagePauseDuration = pauseDurations.length 
     ? pauseDurations.reduce((sum, duration) => sum + duration, 0) / pauseDurations.length
     : 0;
 
-  // Statuses
   const avgRateStatus = getSpeechRateStatus(averageSpeechRate);
   const convRateStatus = getSpeechRateStatus(conversationalSpeechRate);
   const speakingTimeStatus = getSpeakingTimeStatus(speakingTimePercent);
@@ -221,7 +256,6 @@ const SpeechMetricsDisplay = ({ metrics }) => {
       </HStack>
       
       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={4}>
-        {/* Speech Rate Metrics */}
         <Box>
           <Text fontWeight="bold" mb={2}>Speaking Rate</Text>
           <SimpleGrid columns={2} spacing={4}>
@@ -261,7 +295,6 @@ const SpeechMetricsDisplay = ({ metrics }) => {
           </SimpleGrid>
         </Box>
         
-        {/* Speaking Time */}
         <Box>
           <Text fontWeight="bold" mb={2}>Speaking Time</Text>
           <Box 
@@ -295,7 +328,6 @@ const SpeechMetricsDisplay = ({ metrics }) => {
         </Box>
       </SimpleGrid>
       
-      {/* Pauses Section */}
       <Box mt={4}>
         <Text fontWeight="bold" mb={2}>Pauses Analysis</Text>
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
@@ -337,13 +369,12 @@ const SpeechMetricsDisplay = ({ metrics }) => {
         </SimpleGrid>
       </Box>
       
-      {/* Pause Duration Visualization */}
       {pauseDurations.length > 0 && (
         <Box mt={4} p={3} borderRadius="md" border="1px solid" borderColor="gray.200" _dark={{ borderColor: "gray.600" }}>
           <Text fontWeight="bold" mb={2}>Pause Pattern</Text>
           <HStack h="40px" spacing={1} align="flex-end">
             {pauseDurations.map((duration, index) => {
-              const height = Math.min(Math.max(duration * 10, 5), 40); // Scale for visualization
+              const height = Math.min(Math.max(duration * 10, 5), 40);
               return (
                 <Box 
                   key={index} 
@@ -364,21 +395,36 @@ const SpeechMetricsDisplay = ({ metrics }) => {
   );
 };
 
-// Separate Comment component to fix the Hook error
 const Comment = ({ comment }) => {
-  const bgColor = useColorModeValue("gray.100", "gray.700");
-
+  const bgColor = useColorModeValue("gray.50", "gray.700");
+  
   return (
-    <Box p={4} shadow="md" borderWidth="1px" borderRadius="md" bg={bgColor}>
-      <HStack justify="space-between" mb={2}>
-        <Text fontWeight="bold" fontSize={{ base: "sm", md: "md" }}>
-          {comment.commenter?.name || comment.commenter}
-        </Text>
-        <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500">
-          {new Date(comment.createdAt).toLocaleString()}
-        </Text>
+    <Box 
+      p={4} 
+      borderRadius="lg" 
+      bg={bgColor}
+      borderWidth="1px"
+      borderColor={useColorModeValue("gray.200", "gray.600")}
+      transition="all 0.2s"
+      _hover={{ boxShadow: "sm" }}
+    >
+      <HStack mb={3} spacing={3}>
+        <Avatar 
+          size="sm" 
+          name={comment.commenter?.name || comment.commenter} 
+        />
+        <Box>
+          <Text fontWeight="bold" fontSize="sm">
+            {comment.commenter?.name || comment.commenter}
+          </Text>
+          <Text fontSize="xs" color="gray.500">
+            {new Date(comment.createdAt).toLocaleString()}
+          </Text>
+        </Box>
       </HStack>
-      <Text fontSize={{ base: "sm", md: "md" }}>{comment.text}</Text>
+      <Text ml={10} fontSize="md">
+        {comment.text}
+      </Text>
     </Box>
   );
 };
@@ -416,14 +462,24 @@ const EvaluationCard = ({ evaluation }) => (
 );
 
 const EvaluationForm = ({ submissionId, onEvaluationAdded }) => {
-  const [score, setScore] = useState(0);
+  const [score, setScore] = useState(70);
   const [feedback, setFeedback] = useState("");
   const toast = useToast();
   const { token } = useContext(AuthContext);
-  const bgColor = useColorModeValue("white", "gray.700");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!feedback.trim()) {
+      toast({
+        title: "Feedback required",
+        description: "Please provide feedback for your evaluation",
+        status: "warning",
+        duration: 3000,
+      });
+      return;
+    }
+    
     try {
       const response = await axios.post(
         `${process.env.REACT_APP_API_URL}/api/submissions/${submissionId}/evaluate`,
@@ -431,11 +487,6 @@ const EvaluationForm = ({ submissionId, onEvaluationAdded }) => {
         { headers: { "x-auth-token": token } }
       );
       onEvaluationAdded(response.data);
-      toast({
-        title: "Evaluation submitted",
-        status: "success",
-        duration: 3000,
-      });
     } catch (error) {
       toast({
         title: "Error submitting evaluation",
@@ -446,91 +497,77 @@ const EvaluationForm = ({ submissionId, onEvaluationAdded }) => {
   };
 
   return (
-    <Box
-      as="form"
-      onSubmit={handleSubmit}
-      p={6}
-      borderWidth={1}
-      borderRadius="lg"
-      bg={bgColor}
-    >
-      <VStack spacing={4}>
-        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} width="100%">
-          <Box>
-            <Text mb={2}>Score (0-100)</Text>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={score}
-              onChange={(e) => setScore(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px",
-                borderRadius: "4px",
-                border: "1px solid #E2E8F0",
-              }}
-            />
-          </Box>
-          <Box>
-            <Text mb={2}>Feedback</Text>
-            <Textarea
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              placeholder="Enter detailed feedback..."
-            />
-          </Box>
-        </SimpleGrid>
-        <Button type="submit" colorScheme="brand" width="100%">
-          Submit Evaluation
-        </Button>
-      </VStack>
-    </Box>
-  );
-};
+    <VStack spacing={6} as="form" onSubmit={handleSubmit}>
+      <Box w="100%">
+        <Text mb={2} fontWeight="medium">Score: {score}</Text>
+        <Flex align="center">
+          <Text mr={3} fontSize="sm">0</Text>
+          <Slider
+            flex="1"
+            colorScheme="brand"
+            value={score}
+            onChange={(val) => setScore(val)}
+            min={0}
+            max={100}
+          >
+            <SliderTrack>
+              <SliderFilledTrack />
+            </SliderTrack>
+            <SliderThumb boxSize={6}>
+              <Box color="brand.500">
+                <StarIcon />
+              </Box>
+            </SliderThumb>
+          </Slider>
+          <Text ml={3} fontSize="sm">100</Text>
+        </Flex>
+      </Box>
 
-const AutoEvaluationCard = ({ automaticEvaluation }) => {
-  if (!automaticEvaluation) return null;
+      <Box w="100%">
+        <Text mb={2} fontWeight="medium">Detailed Feedback</Text>
+        <Textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          placeholder="Provide thorough feedback about the submission..."
+          size="md"
+          h="200px"
+          resize="vertical"
+        />
+      </Box>
 
-  return (
-    <Box p={4} borderWidth={1} borderRadius="md" mb={4}>
-      <VStack align="stretch" spacing={3}>
-        <HStack justify="space-between">
-          <Text fontWeight="bold">Overall Score:</Text>
-          <Badge colorScheme={automaticEvaluation.score >= 70 ? "green" : "orange"}>
-            {automaticEvaluation.score}%
-          </Badge>
-        </HStack>
-        
-        {automaticEvaluation.semanticSimilarity && (
-          <HStack justify="space-between">
-            <Text fontWeight="bold">Semantic Similarity:</Text>
-            <Text>{(automaticEvaluation.semanticSimilarity.similarity * 100).toFixed(1)}%</Text>
-          </HStack>
-        )}
-
-        <Text fontWeight="bold" mt={2}>Keyword Analysis:</Text>
-        {automaticEvaluation.details.map((detail, index) => (
-          <HStack key={index} justify="space-between">
-            <Text>{detail.keyword}</Text>
-            <Text>
-              {detail.occurrences} occurrences (Score: {detail.score})
-            </Text>
-          </HStack>
-        ))}
-      </VStack>
-    </Box>
+      <Button
+        type="submit"
+        colorScheme="brand"
+        isFullWidth
+        size="lg"
+        leftIcon={<CheckIcon />}
+      >
+        Submit Evaluation
+      </Button>
+    </VStack>
   );
 };
 
 const SubmissionDetail = () => {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tabIndex, setTabIndex] = useState(0);
   const bgColor = useColorModeValue("white", "gray.800");
+  const cardBg = useColorModeValue("gray.50", "gray.700");
+  const evaluationBg = useColorModeValue("white", "gray.800");
   const { id } = useParams();
   const { user, token } = useContext(AuthContext);
   const toast = useToast();
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { 
+    isOpen: isCommentOpen, 
+    onOpen: onCommentOpen, 
+    onClose: onCommentClose 
+  } = useDisclosure();
+  const {
+    isOpen: isEvalOpen,
+    onOpen: onEvalOpen,
+    onClose: onEvalClose
+  } = useDisclosure();
   const [commentText, setCommentText] = useState("");
 
   const fetchSubmission = async () => {
@@ -571,7 +608,7 @@ const SubmissionDetail = () => {
       );
       submission.comments.push(res.data);
       setCommentText("");
-      onClose();
+      onCommentClose();
       toast({
         title: "Comment added successfully",
         status: "success",
@@ -588,167 +625,371 @@ const SubmissionDetail = () => {
     }
   };
 
-  if (loading) return <Spinner size="xl" />;
+  if (loading) return (
+    <Flex justify="center" align="center" h="100vh">
+      <VStack spacing={4}>
+        <Spinner size="xl" thickness="4px" speed="0.65s" color="brand.500" />
+        <Text>Loading submission details...</Text>
+      </VStack>
+    </Flex>
+  );
+  
   if (!submission) return <Text>Submission not found</Text>;
 
+  const averageManualScore = submission.evaluations.length > 0
+    ? submission.evaluations.reduce((acc, evaluation) => acc + evaluation.score, 0) / submission.evaluations.length
+    : null;
+
   return (
-    <Container maxW="container.xl" py={8}>
-      <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={8}>
-        {/* Left Column */}
-        <GridItem>
-          <VStack spacing={6} align="stretch">
-            <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
-              <Heading size="lg" mb={4}>
-                Pitch Submission
-              </Heading>
-              <VideoPlayer url={submission.pitch} />
-            </Box>
-
-            {submission.transcript && (
-              <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
-                <Heading size="md" mb={4}>
-                  Transcript
-                </Heading>
-                <Text whiteSpace="pre-wrap">{submission.transcript}</Text>
-              </Box>
-            )}
-
-            {submission.transcriptionStatus === 'completed' ? (
-              <SpeechMetricsDisplay metrics={submission.speechMetrics} />
-            ) : submission.transcriptionStatus === 'processing' ? (
-              <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
-                <HStack spacing={4}>
-                  <Spinner size="sm" />
-                  <Text>Analyzing speech metrics...</Text>
-                </HStack>
-              </Box>
-            ) : submission.transcriptionStatus === 'failed' ? (
-              <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
-                <Text color="red.500">Failed to analyze speech metrics</Text>
-              </Box>
-            ) : null}
-
-            {/* Automatic Evaluation Display */}
-            {submission.automaticEvaluation && (
-              <AutomaticEvaluationDisplay evaluation={submission.automaticEvaluation} />
-            )}
-          </VStack>
-        </GridItem>
-
-        {/* Right Column */}
-        <GridItem>
-          <VStack spacing={6} align="stretch">
-            <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
-              <Heading size="md" mb={4}>
-                Details
-              </Heading>
-              <VStack align="stretch" spacing={4}>
-                {/* Add Challenge and Assignment info */}
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">Challenge</Text>
-                  <Text>{submission.challenge?.name || "N/A"}</Text>
-                </HStack>
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">Assignment</Text>
-                  <Text>{submission.assignment?.name || "N/A"}</Text>
-                </HStack>
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">Transcription Status</Text>
-                  <Badge
-                    colorScheme={
-                      submission.transcriptionStatus === "completed"
-                        ? "green"
-                        : submission.transcriptionStatus === "failed"
-                        ? "red"
-                        : "yellow"
-                    }
+    <Box>
+      <Box 
+        py={4} 
+        px={6} 
+        bg={bgColor} 
+        borderBottom="1px" 
+        borderColor="gray.200"
+        position="sticky"
+        top="0"
+        zIndex="sticky"
+        boxShadow="sm"
+        _dark={{
+          borderColor: "gray.700"
+        }}
+      >
+        <Container maxW="container.xl">
+          <Grid templateColumns={{ base: "1fr", md: "2fr 1fr" }} gap={4}>
+            <GridItem>
+              <Heading size="lg">{submission.assignment?.name || "Pitch Submission"}</Heading>
+              <HStack mt={2} flexWrap="wrap">
+                <Badge colorScheme="purple">{submission.challenge?.name || "Challenge"}</Badge>
+                <Badge 
+                  colorScheme={
+                    submission.transcriptionStatus === "completed" ? "green" :
+                    submission.transcriptionStatus === "failed" ? "red" : "yellow"
+                  }
+                >
+                  {submission.transcriptionStatus}
+                </Badge>
+                
+                {submission.automaticEvaluation && (
+                  <Tooltip 
+                    label="Score is normalized: (score - lower limit)*100/(upper limit - lower limit)"
+                    placement="top"
+                    hasArrow
                   >
-                    {submission.transcriptionStatus}
-                  </Badge>
-                </HStack>
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">Submitted by</Text>
-                  <Text>{submission.trainee?.name || "N/A"}</Text>
-                </HStack>
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">Submitted on</Text>
-                  <Text>
-                    {new Date(submission.submittedDate).toLocaleString()}
-                  </Text>
-                </HStack>
-                
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">Auto Evaluation</Text>
-                  {submission.automaticEvaluation ? (
-                    <Badge 
-                      colorScheme={submission.automaticEvaluation.score >= 70 ? "green" : "orange"}
-                    >
-                      {submission.automaticEvaluation.score}%
+                    <Badge colorScheme={submission.automaticEvaluation.score >= 70 ? "green" : "orange"}>
+                      Auto Score: {submission.automaticEvaluation.score}%
+                      <InfoIcon ml={1} boxSize={3} />
                     </Badge>
-                  ) : (
-                    <Text>Pending</Text>
-                  )}
-                </HStack>
+                  </Tooltip>
+                )}
                 
-                <HStack justify="space-between">
-                  <Text fontWeight="bold">Manual Evaluations</Text>
-                  <Text>
-                    {submission.evaluations.length} {submission.evaluations.length === 1 ? 'review' : 'reviews'}
-                  </Text>
-                </HStack>
-              </VStack>
-            </Box>
-
-            {/* Manual Evaluations */}
-            {submission.evaluations.length > 0 && (
-              <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
-                <Heading size="md" mb={4}>
-                  Manual Evaluations
-                </Heading>
-                <VStack spacing={4}>
-                  {submission.evaluations.map((evaluation, idx) => (
-                    <EvaluationCard key={idx} evaluation={evaluation} />
-                  ))}
-                </VStack>
-              </Box>
-            )}
-
-            {/* Comments Section */}
-            <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
-              <HStack justify="space-between" mb={4}>
-                <Heading size="md">Comments</Heading>
-                {user.role !== "trainee" && (
-                  <Button size="sm" colorScheme="brand" onClick={onOpen}>
-                    Add Comment
-                  </Button>
+                {averageManualScore && (
+                  <Badge colorScheme={averageManualScore >= 70 ? "green" : "orange"}>
+                    Manual Score: {averageManualScore.toFixed(0)}%
+                  </Badge>
                 )}
               </HStack>
-              <VStack spacing={4} align="stretch">
-                {submission.comments?.map((comment) => (
-                  <Comment key={comment._id} comment={comment} />
-                ))}
-              </VStack>
-            </Box>
+            </GridItem>
+            <GridItem>
+              <HStack justifyContent="flex-end" spacing={4}>
+                <VStack align="flex-end" spacing={0}>
+                  <HStack>
+                    <Text fontWeight="medium">Submitted by:</Text>
+                    <Text>{submission.trainee?.name || "Unknown"}</Text>
+                  </HStack>
+                  <Text fontSize="sm" color="gray.500">
+                    {new Date(submission.submittedDate).toLocaleString()}
+                  </Text>
+                </VStack>
+                <Avatar size="md" name={submission.trainee?.name || "Unknown"} />
+              </HStack>
+            </GridItem>
+          </Grid>
+        </Container>
+      </Box>
 
-            {/* Evaluation Form for authorized users */}
-            {(user.role.includes("trainer") ||
-              user.role.includes("manager")) && (
-              <Box p={6} bg={bgColor} borderRadius="lg" shadow="sm">
-                <Heading size="md" mb={4}>
-                  Add Evaluation
-                </Heading>
-                <EvaluationForm
-                  submissionId={submission._id}
-                  onEvaluationAdded={(updated) => setSubmission(updated)}
-                />
-              </Box>
-            )}
-          </VStack>
-        </GridItem>
-      </Grid>
+      <Container maxW="container.xl" py={8}>
+        <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={8}>
+          <GridItem>
+            <VStack spacing={6} align="stretch">
+              <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">
+                <CardHeader pb={2}>
+                  <Heading size="md">Pitch Video</Heading>
+                </CardHeader>
+                <CardBody pt={0}>
+                  <VideoPlayer url={submission.pitch} />
+                </CardBody>
+              </Card>
+              
+              <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">
+                <Tabs isFitted variant="enclosed" onChange={(index) => setTabIndex(index)}>
+                  <TabList>
+                    <Tab>
+                      <HStack>
+                        <Icon as={FaFileAlt} />
+                        <Text>Transcript</Text>
+                      </HStack>
+                    </Tab>
+                    <Tab>
+                      <HStack>
+                        <Icon as={FaRobot} />
+                        <Text>Auto Evaluation</Text>
+                      </HStack>
+                    </Tab>
+                    <Tab>
+                      <HStack>
+                        <Icon as={FaChartBar} />
+                        <Text>Speech Metrics</Text>
+                      </HStack>
+                    </Tab>
+                    <Tab>
+                      <HStack>
+                        <Icon as={FaComments} />
+                        <Text>Comments ({submission.comments?.length || 0})</Text>
+                      </HStack>
+                    </Tab>
+                  </TabList>
 
-      {/* Comment Modal */}
-      <Modal isOpen={isOpen} onClose={onClose}>
+                  <TabPanels>
+                    <TabPanel>
+                      {submission.transcript ? (
+                        <Box py={2}>
+                          <Text whiteSpace="pre-wrap" fontSize="md" lineHeight="tall">
+                            {submission.transcript}
+                          </Text>
+                        </Box>
+                      ) : (
+                        <Box py={8} textAlign="center">
+                          <Text color="gray.500">Transcript not available</Text>
+                        </Box>
+                      )}
+                    </TabPanel>
+
+                    <TabPanel>
+                      {submission.automaticEvaluation ? (
+                        <AutomaticEvaluationDisplay evaluation={submission.automaticEvaluation} />
+                      ) : (
+                        <Box py={8} textAlign="center">
+                          <Text color="gray.500">Automatic evaluation not available</Text>
+                        </Box>
+                      )}
+                    </TabPanel>
+
+                    <TabPanel>
+                      {submission.transcriptionStatus === 'completed' ? (
+                        <SpeechMetricsDisplay metrics={submission.speechMetrics} />
+                      ) : submission.transcriptionStatus === 'processing' ? (
+                        <Box py={8} textAlign="center">
+                          <Spinner size="md" mb={4} />
+                          <Text color="gray.500">Analyzing speech metrics...</Text>
+                        </Box>
+                      ) : (
+                        <Box py={8} textAlign="center">
+                          <Text color="gray.500">Speech metrics not available</Text>
+                        </Box>
+                      )}
+                    </TabPanel>
+
+                    <TabPanel>
+                      <VStack spacing={4} align="stretch">
+                        {submission.comments && submission.comments.length > 0 ? (
+                          submission.comments.map((comment) => (
+                            <Comment key={comment._id} comment={comment} />
+                          ))
+                        ) : (
+                          <Box py={8} textAlign="center">
+                            <Text color="gray.500">No comments yet</Text>
+                          </Box>
+                        )}
+                      </VStack>
+                    </TabPanel>
+                  </TabPanels>
+                </Tabs>
+              </Card>
+            </VStack>
+          </GridItem>
+
+          <GridItem>
+            <VStack spacing={6} align="stretch">
+              <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">
+                <CardHeader pb={0}>
+                  <Heading size="md">Submission Overview</Heading>
+                </CardHeader>
+                <CardBody>
+                  <SimpleGrid columns={2} spacing={4}>
+                    <Stat>
+                      <StatLabel>Auto Score</StatLabel>
+                      <StatNumber>
+                        {submission.automaticEvaluation ? 
+                          `${submission.automaticEvaluation.score}%` : 
+                          "N/A"}
+                      </StatNumber>
+                      <StatHelpText>
+                        AI-generated
+                      </StatHelpText>
+                    </Stat>
+                    <Stat>
+                      <StatLabel>Manual Reviews</StatLabel>
+                      <StatNumber>{submission.evaluations.length}</StatNumber>
+                      <StatHelpText>
+                        {averageManualScore ? `${averageManualScore.toFixed(0)}% avg` : "No reviews yet"}
+                      </StatHelpText>
+                    </Stat>
+                    <Stat>
+                      <StatLabel>Words per Min</StatLabel>
+                      <StatNumber>
+                        {submission.speechMetrics?.averageSpeechRate ? 
+                          submission.speechMetrics.averageSpeechRate.toFixed(0) : 
+                          "N/A"}
+                      </StatNumber>
+                      <StatHelpText>Speaking rate</StatHelpText>
+                    </Stat>
+                    <Stat>
+                      <StatLabel>Speaking Time</StatLabel>
+                      <StatNumber>
+                        {submission.speechMetrics?.speakingTimePercent ? 
+                          `${submission.speechMetrics.speakingTimePercent.toFixed(0)}%` : 
+                          "N/A"}
+                      </StatNumber>
+                      <StatHelpText>vs. pauses</StatHelpText>
+                    </Stat>
+                  </SimpleGrid>
+                </CardBody>
+              </Card>
+
+              <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">
+                <CardHeader pb={1}>
+                  <Flex align="center">
+                    <Heading size="md">Manual Evaluations</Heading>
+                    <Spacer />
+                    <Text fontSize="sm" color="gray.500">
+                      {submission.evaluations.length} {submission.evaluations.length === 1 ? 'review' : 'reviews'}
+                    </Text>
+                  </Flex>
+                </CardHeader>
+                <CardBody>
+                  {submission.evaluations.length > 0 ? (
+                    <VStack spacing={4} align="stretch">
+                      {submission.evaluations.map((evaluation, idx) => (
+                        <Box 
+                          key={idx} 
+                          p={4} 
+                          borderWidth="1px" 
+                          borderRadius="md" 
+                          bg={evaluationBg}
+                        >
+                          <Flex align="center" mb={2}>
+                            <HStack>
+                              <Badge 
+                                colorScheme={evaluation.score >= 70 ? "green" : "orange"}
+                                fontSize="sm"
+                                px={2}
+                                py={1}
+                                borderRadius="full"
+                              >
+                                {evaluation.score}%
+                              </Badge>
+                              {evaluation.evaluator && (
+                                <Text fontSize="sm" fontWeight="medium">
+                                  by {evaluation.evaluator.name || "Evaluator"}
+                                </Text>
+                              )}
+                            </HStack>
+                            <Spacer />
+                            <Text fontSize="xs" color="gray.500">
+                              {new Date(evaluation.evaluatedDate).toLocaleDateString()}
+                            </Text>
+                          </Flex>
+                          <Text fontSize="sm">{evaluation.feedback}</Text>
+                        </Box>
+                      ))}
+                    </VStack>
+                  ) : (
+                    <Box py={4} textAlign="center">
+                      <Text color="gray.500">No manual evaluations yet</Text>
+                    </Box>
+                  )}
+                </CardBody>
+              </Card>
+              
+              {tabIndex !== 3 && submission.comments && submission.comments.length > 0 && (
+                <Card bg={cardBg} shadow="md" borderRadius="lg" overflow="hidden">
+                  <CardHeader pb={1}>
+                    <Flex align="center">
+                      <Heading size="md">Recent Comments</Heading>
+                      <Spacer />
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        colorScheme="brand"
+                        onClick={() => setTabIndex(3)}
+                      >
+                        View All
+                      </Button>
+                    </Flex>
+                  </CardHeader>
+                  <CardBody>
+                    <VStack spacing={3} align="stretch">
+                      {submission.comments.slice(0, 2).map((comment) => (
+                        <HStack key={comment._id} spacing={3}>
+                          <Avatar size="sm" name={comment.commenter?.name || "User"} />
+                          <Box flex="1">
+                            <Text fontSize="sm" fontWeight="bold">
+                              {comment.commenter?.name || comment.commenter || "User"}
+                            </Text>
+                            <Text fontSize="sm" noOfLines={1}>
+                              {comment.text}
+                            </Text>
+                          </Box>
+                        </HStack>
+                      ))}
+                    </VStack>
+                  </CardBody>
+                </Card>
+              )}
+            </VStack>
+          </GridItem>
+        </Grid>
+      </Container>
+
+      {(user.role.includes("trainer") || user.role.includes("manager")) && (
+        <Tooltip label="Add evaluation">
+          <IconButton
+            icon={<AddIcon />}
+            colorScheme="brand"
+            size="lg"
+            isRound
+            position="fixed"
+            bottom="6"
+            right="6"
+            boxShadow="lg"
+            onClick={onEvalOpen}
+            aria-label="Add evaluation"
+            zIndex="tooltip"
+          />
+        </Tooltip>
+      )}
+
+      {user.role !== "trainee" && tabIndex === 3 && (
+        <Tooltip label="Add comment">
+          <IconButton
+            icon={<FaComments />}
+            colorScheme="brand"
+            size="lg"
+            isRound
+            position="fixed"
+            bottom={user.role.includes("trainer") || user.role.includes("manager") ? "20" : "6"}
+            right="6"
+            boxShadow="lg"
+            onClick={onCommentOpen}
+            aria-label="Add comment"
+            zIndex="tooltip"
+          />
+        </Tooltip>
+      )}
+
+      <Modal isOpen={isCommentOpen} onClose={onCommentClose}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Add Comment</ModalHeader>
@@ -758,19 +999,50 @@ const SubmissionDetail = () => {
               placeholder="Enter your comment"
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
+              h="150px"
             />
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="brand" mr={3} onClick={handleAddComment}>
               Post Comment
             </Button>
-            <Button variant="ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={onCommentClose}>
               Cancel
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </Container>
+
+      <Drawer
+        isOpen={isEvalOpen}
+        placement="right"
+        onClose={onEvalClose}
+        size="md"
+      >
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerCloseButton />
+          <DrawerHeader borderBottomWidth="1px">
+            Add Evaluation
+          </DrawerHeader>
+
+          <DrawerBody py={6}>
+            <EvaluationForm
+              submissionId={submission._id}
+              onEvaluationAdded={(updated) => {
+                setSubmission(updated);
+                onEvalClose();
+                toast({
+                  title: "Evaluation added",
+                  status: "success",
+                  duration: 3000,
+                });
+              }}
+            />
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
+    </Box>
   );
 };
 

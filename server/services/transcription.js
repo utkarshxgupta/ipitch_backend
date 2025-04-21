@@ -23,10 +23,10 @@ class TranscriptionService {
       this.projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
       this.location = 'global'; // Using global for better model availability
       
-      // Update configuration for longer audio and Indian English
+      // Update configuration for longer audio and US English
       this.recognitionConfig = {
         autoDecodingConfig: {},
-        languageCodes: ['en-IN'], // Changed to Indian English
+        languageCodes: ['en-US'], // Changed to US English
         model: 'long', // Using 'long' model instead of 'latest_short'
         features: {
           enableWordTimeOffsets: true,
@@ -109,7 +109,7 @@ class TranscriptionService {
           recognizerId,
           recognizer: {
             defaultRecognitionConfig: this.recognitionConfig,
-            languageCodes: ['en-IN'],
+            languageCodes: ['en-US'], // Changed to US English
             model: 'long'
           }
         };
@@ -144,7 +144,7 @@ class TranscriptionService {
           logger.info('Waiting for operation to complete...');
           const [response] = await operation.promise();
           logger.info('Transcription completed');
-          // logger.info(`Operation response: ${JSON.stringify(response)}`);
+          logger.info(`Operation response: ${JSON.stringify(response)}`);
           formattedResults = this.formatTranscriptionResults(response);
           logger.info(`Formatted results: ${JSON.stringify(formattedResults)}`);
         } catch (operationError) {
@@ -377,6 +377,7 @@ class TranscriptionService {
           'automaticEvaluation.details': evaluationResults.details,
           'automaticEvaluation.rawScore': evaluationResults.rawScore,
           'automaticEvaluation.maxPossibleScore': evaluationResults.maxPossibleScore,
+          'automaticEvaluation.minPossibleScore': evaluationResults.minPossibleScore,
           'automaticEvaluation.evaluatedAt': new Date(),
           'automaticEvaluation.semanticSimilarity': semanticSimilarity
         });

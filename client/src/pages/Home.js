@@ -17,8 +17,10 @@ import {
   StatLabel,
   StatNumber,
   Link,
+  Image,
 } from "@chakra-ui/react";
 import { FaMicrophone, FaChartLine, FaUsers, FaTrophy } from 'react-icons/fa';
+import LandingPageBanner from '../assets/images/undraw_shared-goals_jn0a.svg';
 
 const Feature = ({ title, text, icon }) => {
   return (
@@ -115,6 +117,14 @@ const Home = () => {
                 </Button>
               )}
             </VStack>
+            
+            <Image 
+              src={LandingPageBanner} 
+              alt="Pitch presentation illustration" 
+              maxW={{ base: "100%", md: "450px" }}
+              display={{ base: 'none', md: 'block' }}
+              mt={{ base: 8, md: 0 }}
+            />
           </Stack>
         </Container>
       </Box>
