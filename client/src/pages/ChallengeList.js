@@ -225,7 +225,7 @@ const ChallengeList = () => {
             </Text>
           </Box>
           
-          {user?.role && !user.role.includes('trainee') && (
+          {user?.role && (user.role.includes('trainer') || !user.role.includes('trainee')) && (
             <Button
               leftIcon={<AddIcon />}
               colorScheme="brand"

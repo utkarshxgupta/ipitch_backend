@@ -648,9 +648,6 @@ const SubmissionDetail = () => {
         bg={bgColor} 
         borderBottom="1px" 
         borderColor="gray.200"
-        position="sticky"
-        top="0"
-        zIndex="sticky"
         boxShadow="sm"
         _dark={{
           borderColor: "gray.700"
@@ -953,7 +950,7 @@ const SubmissionDetail = () => {
         </Grid>
       </Container>
 
-      {(user.role.includes("trainer") || user.role.includes("manager")) && (
+      {!(user.role.includes("trainee")) && (
         <Tooltip label="Add evaluation">
           <IconButton
             icon={<AddIcon />}
@@ -979,7 +976,7 @@ const SubmissionDetail = () => {
             size="lg"
             isRound
             position="fixed"
-            bottom={user.role.includes("trainer") || user.role.includes("manager") ? "20" : "6"}
+            bottom={!user.role.includes("trainee") ? "20" : "6"}
             right="6"
             boxShadow="lg"
             onClick={onCommentOpen}

@@ -46,6 +46,16 @@ const AssignmentForm = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const bgColor = useColorModeValue('white', 'gray.700');
   
+  const handleSelectAllChallenges = () => {
+    const allChallengeIds = challenges.map(challenge => challenge._id);
+    setSelectedChallenges(allChallengeIds);
+  };
+
+  const handleSelectAllUsers = () => {
+    const allUserIds = users.map(user => user._id);
+    setSelectedUsers(allUserIds);
+  };
+  
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -179,6 +189,15 @@ const AssignmentForm = () => {
         return (
           <FormControl isRequired>
             <FormLabel>Select Challenges</FormLabel>
+            <Button 
+              size="sm" 
+              colorScheme="brand" 
+              variant="outline" 
+              mb={2}
+              onClick={handleSelectAllChallenges}
+            >
+              Select All Challenges
+            </Button>
             <SearchableSelect
               items={challenges}
               selectedItems={selectedChallenges}
@@ -194,6 +213,15 @@ const AssignmentForm = () => {
         return (
           <FormControl isRequired>
             <FormLabel>Assign Users</FormLabel>
+            <Button 
+              size="sm" 
+              colorScheme="brand" 
+              variant="outline" 
+              mb={2}
+              onClick={handleSelectAllUsers}
+            >
+              Select All Users
+            </Button>
             <SearchableSelect
               items={users}
               selectedItems={selectedUsers}

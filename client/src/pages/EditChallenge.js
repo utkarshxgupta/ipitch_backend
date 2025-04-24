@@ -105,7 +105,7 @@ const EditChallenge = () => {
 
   useEffect(() => {
     // Check if user has permission to edit
-    if (user && !user.role.includes('admin') && !user.role.includes('trainer')) {
+    if (user && !(user.role.includes('admin') || user.role.includes('trainer'))) {
       toast({
         title: "Access denied",
         description: "You don't have permission to edit challenges",

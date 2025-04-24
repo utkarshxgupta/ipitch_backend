@@ -26,7 +26,7 @@ class SemanticEvaluationService {
       const evaluationResult = await TransformerEmbeddingService.findSemanticMatches(
         transcript,
         evaluationCriteria,
-        0.65 // Similarity threshold
+        0.64 // Similarity threshold
       );
 
       logger.info(`Semantic evaluation complete. Score: ${evaluationResult.score}`);

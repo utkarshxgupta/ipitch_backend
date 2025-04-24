@@ -184,7 +184,7 @@ class TransformerEmbeddingService {
    * @param {number} similarityThreshold - Threshold for considering a match
    * @returns {Promise<Object>} - Detailed results with scores
    */
-  async findSemanticMatches(text, criteria, similarityThreshold = 0.65) {
+  async findSemanticMatches(text, criteria, similarityThreshold = 0.64) {
     // Create windows with three sizes to capture different semantic contexts
     const smallWindows = this.createTextWindows(text, 7, 3);  // Small chunks for specific phrases
     const mediumWindows = this.createTextWindows(text, 14, 7); // Medium chunks for sentence-level context
